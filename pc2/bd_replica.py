@@ -1,15 +1,13 @@
-"""
-bd_replica.py - Base de Datos Réplica - PC2
-
-Este servicio hace dos cosas:
-  1. Recibe datos procesados de la analítica (PULL) y los guarda en SQLite
-  2. Responde consultas del monitoreo (REP) cuando el PC3 está caído
-
-La BD réplica es idéntica a la BD principal. Si el PC3 falla,
-el monitoreo se conecta aquí automáticamente (enmascaramiento de fallos).
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# bd_replica.py - base de datos réplica - pc2
+#
+# este servicio hace dos cosas:
+#   1. recibe datos procesados de la analítica (pull) y los guarda en sqlite
+#   2. responde consultas del monitoreo (rep) cuando el pc3 está caído
+#
+# la bd réplica es idéntica a la bd principal. si el pc3 falla,
+# el monitoreo se conecta aquí automáticamente (enmascaramiento de fallos).
+#
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import json
@@ -21,7 +19,7 @@ from datetime import datetime, timezone
 # ============================================================
 # CONFIGURACIÓN DE RED
 # ============================================================
-REPLICA_IP = "192.168.1.101"   # PC2 - esta máquina
+REPLICA_IP = "10.43.98.199"   # PC2 - esta máquina
 PUERTO_PULL = 5562             # Puerto para recibir datos de analítica
 PUERTO_REP = 5564              # Puerto para consultas del monitoreo (failover)
 
@@ -35,10 +33,8 @@ def timestamp_ahora():
 
 
 def crear_tablas():
-    """
-    Creo las tablas en SQLite si no existen.
-    Es el mismo esquema que la BD principal para mantener consistencia.
-    """
+    # creo las tablas en sqlite si no existen.
+    # es el mismo esquema que la bd principal para mantener consistencia.
     conn = sqlite3.connect(BD_ARCHIVO)
     cursor = conn.cursor()
 
@@ -88,10 +84,8 @@ def crear_tablas():
 
 
 def guardar_evento(registro):
-    """
-    Guarda un evento procesado en la tabla eventos_trafico.
-    Uso SQL crudo con cursor.execute() directamente.
-    """
+    # guarda un evento procesado en la tabla eventos_trafico.
+    # uso sql crudo con cursor.execute() directamente.
     conn = sqlite3.connect(BD_ARCHIVO)
     cursor = conn.cursor()
 
@@ -120,10 +114,8 @@ def guardar_evento(registro):
 
 
 def hilo_recibir_datos(contexto):
-    """
-    Hilo que recibe datos procesados de la analítica (PULL).
-    Cada dato que llega lo guardo en la BD SQLite.
-    """
+    # hilo que recibe datos procesados de la analítica (pull).
+    # cada dato que llega lo guardo en la bd sqlite.
     socket = contexto.socket(zmq.PULL)
     socket.bind(f"tcp://{REPLICA_IP}:{PUERTO_PULL}")
 
@@ -151,16 +143,14 @@ def hilo_recibir_datos(contexto):
 
 
 def hilo_consultas(contexto):
-    """
-    Hilo REP que responde consultas del monitoreo cuando el PC3 está caído.
-    El monitoreo se conecta aquí automáticamente si el PC3 no responde.
-    
-    Tipos de consulta:
-      - CONSULTA_HISTORICA: eventos entre dos fechas
-      - CONSULTA_INTERSECCION: datos de una intersección
-      - CONSULTA_ESTADOS: resumen de cuántos eventos por estado
-      - CONSULTA_THROUGHPUT: total de registros en la BD
-    """
+    # hilo rep que responde consultas del monitoreo cuando el pc3 está caído.
+    # el monitoreo se conecta aquí automáticamente si el pc3 no responde.
+    # 
+    # tipos de consulta:
+    #   - consulta_historica: eventos entre dos fechas
+    #   - consulta_interseccion: datos de una intersección
+    #   - consulta_estados: resumen de cuántos eventos por estado
+    #   - consulta_throughput: total de registros en la bd
     socket = contexto.socket(zmq.REP)
     socket.bind(f"tcp://{REPLICA_IP}:{PUERTO_REP}")
 

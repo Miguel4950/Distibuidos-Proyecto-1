@@ -1,23 +1,21 @@
-"""
-monitoreo.py - Servicio de Monitoreo y Consulta - PC3
-
-Este es el servicio que usa el usuario (operador) para interactuar
-con el sistema de tráfico. Tiene un menú por consola con estas opciones:
-
-  1. Ver estado actual de una intersección (pregunta a analítica)
-  2. Consulta histórica entre fechas (pregunta a BD principal)
-  3. Ver resumen de estados de congestión (pregunta a BD)
-  4. Forzar cambio de semáforo - ambulancia (envía a analítica)
-  5. Ver throughput del sistema (pregunta a BD)
-  6. Consultar datos de intersección en BD
-
-TOLERANCIA A FALLOS:
-Si la BD principal (PC3) no responde, este servicio cambia
-automáticamente para consultar a la BD réplica (PC2).
-El programa NO se cierra, sigue funcionando normal.
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# monitoreo.py - servicio de monitoreo y consulta - pc3
+#
+# este es el servicio que usa el usuario (operador) para interactuar
+# con el sistema de tráfico. tiene un menú por consola con estas opciones:
+#
+#   1. ver estado actual de una intersección (pregunta a analítica)
+#   2. consulta histórica entre fechas (pregunta a bd principal)
+#   3. ver resumen de estados de congestión (pregunta a bd)
+#   4. forzar cambio de semáforo - ambulancia (envía a analítica)
+#   5. ver throughput del sistema (pregunta a bd)
+#   6. consultar datos de intersección en bd
+#
+# tolerancia a fallos:
+# si la bd principal (pc3) no responde, este servicio cambia
+# automáticamente para consultar a la bd réplica (pc2).
+# el programa no se cierra, sigue funcionando normal.
+#
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import json
@@ -27,9 +25,9 @@ from datetime import datetime, timezone
 # ============================================================
 # CONFIGURACIÓN DE RED - Cambiar según las IPs
 # ============================================================
-ANALITICA_IP = "192.168.1.101"      # PC2 - servicio de analítica
-BD_PRINCIPAL_IP = "192.168.1.102"   # PC3 - BD principal (esta máquina)
-BD_REPLICA_IP = "192.168.1.101"     # PC2 - BD réplica (fallback)
+ANALITICA_IP = "10.43.98.199"      # PC2 - servicio de analítica
+BD_PRINCIPAL_IP = "10.43.99.183"   # PC3 - BD principal (esta máquina)
+BD_REPLICA_IP = "10.43.98.199"     # PC2 - BD réplica (fallback)
 
 TIMEOUT = 5000  # Timeout en milisegundos (5 segundos)
 
@@ -40,9 +38,7 @@ usando_replica = False
 
 
 def crear_socket(contexto, tipo, endpoint):
-    """
-    Crea un socket ZMQ simple con timeout configurado.
-    """
+    # crea un socket zmq simple con timeout configurado.
     socket = contexto.socket(tipo)
     socket.setsockopt(zmq.RCVTIMEO, TIMEOUT)
     socket.setsockopt(zmq.SNDTIMEO, TIMEOUT)
@@ -52,13 +48,11 @@ def crear_socket(contexto, tipo, endpoint):
 
 
 def consultar_bd(contexto, socket_bd, consulta, endpoint_actual):
-    """
-    Envía una consulta a la BD y maneja el failover automático.
-    
-    Si la BD principal no responde, cierro el socket viejo,
-    creo uno nuevo conectado a la BD réplica y reintento.
-    El programa nunca se cierra por esto.
-    """
+    # envía una consulta a la bd y maneja el failover automático.
+    # 
+    # si la bd principal no responde, cierro el socket viejo,
+    # creo uno nuevo conectado a la bd réplica y reintento.
+    # el programa nunca se cierra por esto.
     global usando_replica
 
     try:
@@ -118,7 +112,7 @@ def consultar_bd(contexto, socket_bd, consulta, endpoint_actual):
 
 
 def mostrar_menu():
-    """Muestra el menú principal."""
+    # muestra el menú principal.
     print("\n" + "=" * 55)
     print("   MONITOREO Y CONSULTA - Sistema de Tráfico")
     print("=" * 55)

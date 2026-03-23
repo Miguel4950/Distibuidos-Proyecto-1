@@ -1,15 +1,14 @@
-"""
-broker_multihilo.py - Broker ZeroMQ para el PC1 (Ingesta de datos)
-
-Este script actúa como intermediario entre los sensores y el servicio
-de analítica. Usa XSUB/XPUB para reenviar los mensajes sin procesarlos.
-
-Tiene un diseño multihilo:
-  - Un hilo para el proxy (reenviar mensajes)
-  - Un hilo para contar mensajes (métricas de rendimiento)
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# broker_multihilo.py - broker zeromq para el pc1 (ingesta de datos)
+# 
+# este script actúa como intermediario entre los sensores y el 
+# servicio de analítica. 
+# usa xsub/xpub para reenviar los mensajes sin procesarlos.
+# 
+# tiene un diseño multihilo:
+#   - un hilo para el proxy (reenviar mensajes)
+#   - un hilo para contar mensajes (métricas de rendimiento)
+# 
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import threading
@@ -19,7 +18,7 @@ import sys
 # ============================================================
 # CONFIGURACIÓN DE RED - Cambiar según la IP del PC1
 # ============================================================
-BROKER_IP = "192.168.1.100"
+BROKER_IP = "10.43.98.198"
 PUERTO_XSUB = 5555   # Aquí se conectan los sensores (PUB)
 PUERTO_XPUB = 5556   # Aquí se conecta la analítica (SUB)
 
@@ -30,9 +29,8 @@ contador_mensajes = 0
 lock_contador = threading.Lock()
 
 def hilo_metricas():
-    """
-    Este hilo simplemente imprime el valor del contador global cada 30 segundos.
-    """
+    # este hilo simplemente imprime el valor del contador 
+    # global cada 30 segundos.
     global contador_mensajes
     print("[METRICAS] Hilo de métricas iniciado")
 
@@ -49,11 +47,10 @@ def hilo_metricas():
 
 
 def hilo_proxy(contexto):
-    """
-    Este hilo es el proxy principal del broker.
-    Recibe mensajes de los sensores y los reenvía manualmente a la analítica.
-    No usamos zmq.proxy() para poder contar los mensajes explícitamente.
-    """
+    # este hilo es el proxy principal del broker.
+    # recibe mensajes de los sensores y los reenvía manualmente a 
+    # la analítica.
+    # no usamos zmq.proxy() para poder contar los mensajes explícitamente.
     global contador_mensajes
 
     # Socket XSUB - aquí llegan los mensajes de los sensores

@@ -1,16 +1,14 @@
-"""
-control_semaforos.py - Control de Semáforos - PC2
-
-Este servicio recibe comandos de la analítica (PULL) y cambia el estado
-de los semáforos en cada intersección.
-
-Los semáforos alternan entre VERDE y ROJO:
-  - Ciclo normal: 15 segundos verde, 15 segundos rojo
-  - Congestión: 30 segundos verde
-  - Priorización (ambulancia): 45 segundos verde
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# control_semaforos.py - control de semáforos - pc2
+#
+# este servicio recibe comandos de la analítica (pull) y cambia el estado
+# de los semáforos en cada intersección.
+#
+# los semáforos alternan entre verde y rojo:
+#   - ciclo normal: 15 segundos verde, 15 segundos rojo
+#   - congestión: 30 segundos verde
+#   - priorización (ambulancia): 45 segundos verde
+#
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import json
@@ -21,7 +19,7 @@ from datetime import datetime, timezone
 # ============================================================
 # CONFIGURACIÓN DE RED
 # ============================================================
-ANALITICA_IP = "192.168.1.101"  # PC2 - esta máquina
+ANALITICA_IP = "10.43.98.199"  # PC2 - esta máquina
 
 # TODO: Implementar CurveZMQ para la entrega final
 
@@ -36,10 +34,8 @@ def timestamp_ahora():
 
 
 def hilo_ciclo_automatico():
-    """
-    Este hilo cambia automáticamente los semáforos de VERDE a ROJO
-    y viceversa cuando se cumple el tiempo configurado.
-    """
+    # este hilo cambia automáticamente los semáforos de verde a rojo
+    # y viceversa cuando se cumple el tiempo configurado.
     while True:
         time.sleep(1)  # Reviso cada segundo
 
@@ -64,13 +60,11 @@ def hilo_ciclo_automatico():
 
 
 def hilo_recibir_comandos(contexto):
-    """
-    Este hilo recibe comandos de la analítica usando PULL.
-    Los comandos pueden ser:
-      - CICLO_NORMAL: volver al ciclo de 15s
-      - EXTENDER_VERDE: poner verde por 30s (congestión)
-      - OLA_VERDE: verde inmediato por 45s (ambulancia)
-    """
+    # este hilo recibe comandos de la analítica usando pull.
+    # los comandos pueden ser:
+    #   - ciclo_normal: volver al ciclo de 15s
+    #   - extender_verde: poner verde por 30s (congestión)
+    #   - ola_verde: verde inmediato por 45s (ambulancia)
     # Socket PULL para recibir comandos
     socket = contexto.socket(zmq.PULL)
     socket.connect(f"tcp://{ANALITICA_IP}:5563")

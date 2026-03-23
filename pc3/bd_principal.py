@@ -1,15 +1,13 @@
-"""
-bd_principal.py - Base de Datos Principal - PC3 (Persistencia)
-
-Este servicio es la BD principal del sistema. Hace dos cosas:
-  1. Recibe datos procesados de la analítica (PULL) y los guarda en SQLite
-  2. Responde consultas del servicio de monitoreo (REP)
-
-Si este servicio se cae, la analítica activa el enmascaramiento de fallos
-y el monitoreo se conecta automáticamente a la BD réplica en PC2.
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# bd_principal.py - base de datos principal - pc3 (persistencia)
+#
+# este servicio es la bd principal del sistema. hace dos cosas:
+#   1. recibe datos procesados de la analítica (pull) y los guarda en sqlite
+#   2. responde consultas del servicio de monitoreo (rep)
+#
+# si este servicio se cae, la analítica activa el enmascaramiento de fallos
+# y el monitoreo se conecta automáticamente a la bd réplica en pc2.
+#
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import json
@@ -21,7 +19,7 @@ from datetime import datetime, timezone
 # ============================================================
 # CONFIGURACIÓN DE RED
 # ============================================================
-BD_IP = "192.168.1.102"   # PC3 - esta máquina
+BD_IP = "10.43.99.183"   # PC3 - esta máquina
 PUERTO_PULL = 5570        # Puerto para recibir datos de analítica
 PUERTO_REP = 5571         # Puerto para consultas del monitoreo
 
@@ -35,10 +33,8 @@ def timestamp_ahora():
 
 
 def crear_tablas():
-    """
-    Creo las tablas de la BD si no existen.
-    Son las mismas tablas que en la BD réplica.
-    """
+    # creo las tablas de la bd si no existen.
+    # son las mismas tablas que en la bd réplica.
     conn = sqlite3.connect(BD_ARCHIVO)
     cursor = conn.cursor()
 
@@ -88,9 +84,7 @@ def crear_tablas():
 
 
 def guardar_evento(registro):
-    """
-    Guarda un evento procesado en la BD usando SQL crudo.
-    """
+    # guarda un evento procesado en la bd usando sql crudo.
     conn = sqlite3.connect(BD_ARCHIVO)
     cursor = conn.cursor()
 
@@ -119,10 +113,8 @@ def guardar_evento(registro):
 
 
 def hilo_recibir_datos(contexto):
-    """
-    Este hilo recibe datos procesados de la analítica (PULL).
-    Cada dato que llega lo guardo en la BD SQLite.
-    """
+    # este hilo recibe datos procesados de la analítica (pull).
+    # cada dato que llega lo guardo en la bd sqlite.
     socket = contexto.socket(zmq.PULL)
     socket.bind(f"tcp://{BD_IP}:{PUERTO_PULL}")
 
@@ -151,10 +143,8 @@ def hilo_recibir_datos(contexto):
 
 
 def hilo_consultas(contexto):
-    """
-    Este hilo responde consultas del servicio de monitoreo (REP).
-    Hace SELECTs directos a la BD SQLite y devuelve los resultados.
-    """
+    # este hilo responde consultas del servicio de monitoreo (rep).
+    # hace selects directos a la bd sqlite y devuelve los resultados.
     socket = contexto.socket(zmq.REP)
     socket.bind(f"tcp://{BD_IP}:{PUERTO_REP}")
 

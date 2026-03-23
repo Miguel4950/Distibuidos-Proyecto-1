@@ -1,17 +1,16 @@
-"""
-sensores.py - Simulación de sensores de tráfico - PC1
-
-Este script simula los 3 tipos de sensores de tráfico que hay en la ciudad:
-  1. Cámaras de tráfico -> miden longitud de cola (Q) y velocidad (Vp)
-  2. Espiras inductivas -> cuentan vehículos que pasan (Cv)
-  3. Sensores GPS -> miden densidad (D) y velocidad promedio (Vp)
-
-La ciudad es una cuadrícula de 5x5 (filas A-E, columnas 1-5).
-Cada sensor genera un evento JSON cada cierto tiempo y lo publica
-al broker usando PUB/SUB de ZeroMQ.
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# sensores.py - simulación de sensores de tráfico - pc1
+# 
+# este script simula los 3 tipos de sensores de tráfico que hay 
+# en la ciudad:
+#   1. cámaras de tráfico -> miden longitud de cola (q) y velocidad (vp)
+#   2. espiras inductivas -> cuentan vehículos que pasan (cv)
+#   3. sensores gps -> miden densidad (d) y velocidad promedio (vp)
+# 
+# la ciudad es una cuadrícula de 5x5 (filas a-e, columnas 1-5).
+# cada sensor genera un evento json cada cierto tiempo y lo publica
+# al broker usando pub/sub de zeromq.
+# 
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import json
@@ -23,7 +22,7 @@ from datetime import datetime, timezone
 # ============================================================
 # CONFIGURACIÓN - Cambiar la IP del broker (PC1)
 # ============================================================
-BROKER_IP = "192.168.1.100"
+BROKER_IP = "10.43.98.198"
 PUERTO_BROKER = 5555  # Puerto XSUB del broker
 
 INTERVALO = 10  # Segundos entre cada evento generado
@@ -39,15 +38,13 @@ INTERSECCIONES = [("A", 1), ("B", 3), ("C", 5), ("D", 2), ("E", 4)]
 
 
 def timestamp_ahora():
-    """Devuelve la fecha y hora actual en formato ISO 8601."""
+    # devuelve la fecha y hora actual en formato iso 8601.
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def generar_evento_camara(fila, col):
-    """
-    Genera un evento de cámara de tráfico.
-    Mide la longitud de cola (Q) y velocidad promedio (Vp).
-    """
+    # genera un evento de cámara de tráfico.
+    # mide la longitud de cola (q) y velocidad promedio (vp).
     evento = {
         "sensor_id": f"CAM-{fila}{col}",
         "tipo_sensor": "camara",
@@ -60,10 +57,9 @@ def generar_evento_camara(fila, col):
 
 
 def generar_evento_espira(fila, col):
-    """
-    Genera un evento de espira inductiva.
-    Cuenta cuántos vehículos pasaron en un intervalo de 30 segundos.
-    """
+    # genera un evento de espira inductiva.
+    # cuenta cuántos vehículos pasaron en un intervalo de 
+    # 30 segundos.
     evento = {
         "sensor_id": f"ESP-{fila}{col}",
         "tipo_sensor": "espira_inductiva",
@@ -77,11 +73,9 @@ def generar_evento_espira(fila, col):
 
 
 def generar_evento_gps(fila, col):
-    """
-    Genera un evento del sensor GPS.
-    Mide velocidad promedio (Vp) y densidad de tráfico (D).
-    El nivel de congestión se determina por la velocidad.
-    """
+    # genera un evento del sensor gps.
+    # mide velocidad promedio (vp) y densidad de tráfico (d).
+    # el nivel de congestión se determina por la velocidad.
     velocidad = round(random.uniform(0, 60), 1)
 
     # Determino el nivel de congestión según la velocidad
@@ -108,13 +102,11 @@ def generar_evento_gps(fila, col):
 
 
 def ejecutar_sensor(tipo, fila, col, contexto):
-    """
-    Función que ejecuta un sensor individual en un hilo.
-    Cada sensor genera eventos periódicamente y los publica al broker.
-    
-    El mensaje se envía como: "topico {JSON}"
-    Donde topico es: camara, espira, o gps
-    """
+    # función que ejecuta un sensor individual en un hilo.
+    # cada sensor genera eventos periódicamente y los publica al broker.
+    # 
+    # el mensaje se envía como: "topico {json}"
+    # donde topico es: camara, espira, o gps
     # Creo el socket PUB y me conecto al broker
     socket = contexto.socket(zmq.PUB)
     socket.connect(f"tcp://{BROKER_IP}:{PUERTO_BROKER}")

@@ -1,18 +1,16 @@
-"""
-analitica.py - Servicio de Analítica de Tráfico - PC2 (Cerebro)
-
-Este es el componente principal de procesamiento. Hace lo siguiente:
-  1. Se suscribe al broker y recibe los eventos de los sensores (SUB)
-  2. Evalúa las reglas de tráfico con las variables D, Vp, Q
-  3. Envía los datos procesados a la BD principal (PUSH) y a la réplica (PUSH)
-  4. Envía comandos al control de semáforos (PUSH)
-  5. Atiende comandos del monitoreo como priorización de ambulancias (REP)
-
-Si la BD principal (PC3) no responde, se activa el enmascaramiento de fallos
-y los datos solo se guardan en la BD réplica (PC2).
-
-Autores: Grupo X - Sistemas Distribuidos 2026-10
-"""
+# analitica.py - servicio de analítica de tráfico - pc2 (cerebro)
+# 
+# este es el componente principal de procesamiento. hace lo siguiente:
+#   1. se suscribe al broker y recibe los eventos de los sensores (sub)
+#   2. evalúa las reglas de tráfico con las variables d, vp, q
+#   3. envía los datos procesados a la bd principal (push) y a la réplica (push)
+#   4. envía comandos al control de semáforos (push)
+#   5. atiende comandos del monitoreo como priorización de ambulancias (rep)
+# 
+# si la bd principal (pc3) no responde, se activa el enmascaramiento de fallos
+# y los datos solo se guardan en la bd réplica (pc2).
+# 
+# autores: miguel angel acuña, juan david acuña, y samuel felipe manrique - sistemas distribuidos 2026-10
 
 import zmq
 import json
@@ -23,9 +21,9 @@ from datetime import datetime, timezone
 # ============================================================
 # CONFIGURACIÓN DE RED - Cambiar según las IPs de cada PC
 # ============================================================
-BROKER_IP = "192.168.1.100"         # PC1 - donde está el broker
-ANALITICA_IP = "192.168.1.101"      # PC2 - esta máquina
-BD_PRINCIPAL_IP = "192.168.1.102"   # PC3 - BD principal
+BROKER_IP = "10.43.98.198"         # PC1 - donde está el broker
+ANALITICA_IP = "10.43.98.199"      # PC2 - esta máquina
+BD_PRINCIPAL_IP = "10.43.99.183"   # PC3 - BD principal
 
 # TODO: Implementar CurveZMQ para la entrega final
 
@@ -45,17 +43,15 @@ def timestamp_ahora():
 
 
 def evaluar_trafico(Q, Vp, D):
-    """
-    Evalúa el estado del tráfico usando las 3 variables:
-      Q  = Longitud de cola (vehículos en espera) - viene de la cámara
-      Vp = Velocidad promedio (km/h) - viene de cámara y GPS
-      D  = Densidad de tráfico (veh/km) - viene del GPS
-
-    Reglas:
-      NORMAL:     Q < 5  AND Vp > 35 AND D < 20
-      CONGESTION: Q >= 10 OR  Vp <= 15 OR  D >= 40
-      INTERMEDIO: cualquier otro caso
-    """
+    # evalúa el estado del tráfico usando las 3 variables:
+    #   q  = longitud de cola (vehículos en espera) - viene de la cámara
+    #   vp = velocidad promedio (km/h) - viene de cámara y gps
+    #   d  = densidad de tráfico (veh/km) - viene del gps
+    #
+    # reglas:
+    #   normal:     q < 5  and vp > 35 and d < 20
+    #   congestion: q >= 10 or  vp <= 15 or  d >= 40
+    #   intermedio: cualquier otro caso
     # Primero verifico si hay congestión (tiene prioridad)
     if Q >= 10 or Vp <= 15 or D >= 40:
         return "CONGESTION"
@@ -69,13 +65,11 @@ def evaluar_trafico(Q, Vp, D):
 
 
 def crear_comando_semaforo(interseccion, estado):
-    """
-    Crea un comando para enviar al servicio de semáforos.
-    Dependiendo del estado, cambio la duración del verde:
-      NORMAL -> 15 segundos (ciclo normal)
-      CONGESTION -> 30 segundos (verde extendido)
-      PRIORIZACION -> 45 segundos (ola verde)
-    """
+    # crea un comando para enviar al servicio de semáforos.
+    # dependiendo del estado, cambio la duración del verde:
+    #   normal -> 15 segundos (ciclo normal)
+    #   congestion -> 30 segundos (verde extendido)
+    #   priorizacion -> 45 segundos (ola verde)
     if estado == "CONGESTION":
         return {
             "interseccion": interseccion,
@@ -103,15 +97,13 @@ def crear_comando_semaforo(interseccion, estado):
 
 
 def hilo_recibir_sensores(contexto):
-    """
-    Este hilo se suscribe al broker y recibe los eventos de los sensores.
-    Por cada evento:
-      1. Lo deserializo (unmarshalling del JSON)
-      2. Actualizo las variables Q, Vp, D de la intersección
-      3. Evalúo las reglas de tráfico
-      4. Envío los datos a las dos BDs
-      5. Si cambió el estado, envío comando al semáforo
-    """
+    # este hilo se suscribe al broker y recibe los eventos de los sensores.
+    # por cada evento:
+    #   1. lo deserializo (unmarshalling del json)
+    #   2. actualizo las variables q, vp, d de la intersección
+    #   3. evalúo las reglas de tráfico
+    #   4. envío los datos a las dos bds
+    #   5. si cambió el estado, envío comando al semáforo
     global pc3_esta_vivo
 
     # Me suscribo al broker para recibir los eventos
@@ -258,12 +250,10 @@ def hilo_recibir_sensores(contexto):
 
 
 def hilo_atender_monitoreo(contexto):
-    """
-    Este hilo atiende las solicitudes del servicio de monitoreo.
-    Usa el patrón REQ/REP. El monitoreo puede:
-      - Pedir el estado actual de una intersección
-      - Forzar un cambio de semáforo (ambulancia)
-    """
+    # este hilo atiende las solicitudes del servicio de monitoreo.
+    # usa el patrón req/rep. el monitoreo puede:
+    #   - pedir el estado actual de una intersección
+    #   - forzar un cambio de semáforo (ambulancia)
     # Socket REP para recibir solicitudes del monitoreo
     socket_rep = contexto.socket(zmq.REP)
     socket_rep.setsockopt(zmq.SNDTIMEO, 3000)
