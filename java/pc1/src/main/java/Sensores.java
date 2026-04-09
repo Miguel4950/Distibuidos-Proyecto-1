@@ -58,10 +58,19 @@ public class Sensores {
         evento.put("tipo_sensor", "camara");
         evento.put("interseccion", "INT-" + fila + col);
         
-        // Ajuste para hacer Tráfico Normal (Q < 5, Vp > 35) muy probable (80% de los casos)
+        // Ajuste para hacer Tráfico Normal muy probable (80% de los casos)
         boolean esNormal = random.nextInt(100) < 80;
-        int q = esNormal ? random.nextInt(5) : 5 + random.nextInt(26); // 0-4 o 5-30
-        double vp = esNormal ? (36 + random.nextDouble() * 14) : random.nextDouble() * 35; 
+        
+        int q;
+        double vp;
+        
+        if (esNormal) {
+            q = random.nextInt(5); // 0-4
+            vp = 36.0 + random.nextDouble() * 14.0; // 36-50
+        } else {
+            q = 5 + random.nextInt(26); 
+            vp = random.nextDouble() * 35.0;
+        }
         
         evento.put("volumen", q);
         evento.put("velocidad_promedio", Math.round(vp * 10.0) / 10.0);
@@ -87,30 +96,22 @@ public class Sensores {
     // genera un evento del sensor gps.
     // mide velocidad promedio (vp) y densidad de trafico (d).
     static JSONObject generarEventoGps(String fila, int col) {
-        // Ajuste para hacer Tráfico Normal (Vp > 35, D < 20) muy probable (80% casos)
         boolean esNormal = random.nextInt(100) < 80;
+        
         double velocidad;
+        String nivel;
+        int densidad;
         
         if (esNormal) {
             velocidad = 40.0 + random.nextDouble() * 20.0; // 40-60 km/h
+            nivel = "BAJA";
+            densidad = 1 + random.nextInt(19);  // 1-19 (Normal: D < 20)
         } else {
             velocidad = random.nextDouble() * 30.0; // 0-30 km/h
+            nivel = "NORMAL";
+            densidad = 15 + random.nextInt(26); // 15-40
         }
         velocidad = Math.round(velocidad * 10.0) / 10.0;
-
-        // Densidad dependiendo de la velocidad segun documento
-        String nivel;
-        int densidad;
-        if (velocidad < 10) {
-            nivel = "ALTA";
-            densidad = 40 + random.nextInt(41); // 40 a 80
-        } else if (velocidad < 40) {
-            nivel = "NORMAL";
-            densidad = 15 + random.nextInt(26); // 15 a 40
-        } else {
-            nivel = "BAJA";
-            densidad = 1 + random.nextInt(19);  // 1 a 19 (D < 20 para regla Tráfico Normal)
-        }
 
         JSONObject evento = new JSONObject();
         evento.put("sensor_id", "GPS-" + fila + col);
