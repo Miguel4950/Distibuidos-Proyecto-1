@@ -53,9 +53,7 @@ public class Analitica {
     //   vp = velocidad promedio (km/h) - viene de camara y gps
     //   d  = densidad de trafico (veh/km) - viene del gps
     static String evaluarTrafico(int Q, double Vp, int D) {
-        if (Q >= 10 || Vp <= 15 || D >= 40) {
-            return "CONGESTION";
-        }
+        // En la Entrega 1 solo evaluamos y gestionamos activamente el Caso 1 (Tráfico Normal)
         if (Q < 5 && Vp > 35 && D < 20) {
             return "NORMAL";
         }
@@ -72,18 +70,10 @@ public class Analitica {
         cmd.put("interseccion", interseccion);
         cmd.put("timestamp", timestampAhora());
 
-        if (estado.equals("CONGESTION")) {
-            cmd.put("accion", "EXTENDER_VERDE");
-            cmd.put("duracion_verde", 30);
-            cmd.put("motivo", "Congestion detectada");
-        } else if (estado.equals("NORMAL")) {
+        if (estado.equals("NORMAL")) {
             cmd.put("accion", "CICLO_NORMAL");
             cmd.put("duracion_verde", 15);
             cmd.put("motivo", "Trafico normal");
-        } else if (estado.equals("OLA_VERDE")) {
-            cmd.put("accion", "OLA_VERDE");
-            cmd.put("duracion_verde", 45);
-            cmd.put("motivo", "Paso de emergencia");
         }
         
         return cmd;

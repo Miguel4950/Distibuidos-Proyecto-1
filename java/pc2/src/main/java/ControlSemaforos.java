@@ -120,14 +120,6 @@ public class ControlSemaforos {
                     // mantengo ciclo normal
                     sem.put("verde_seg", 15);
                     sem.put("rojo_seg", 15);
-                } else if (accion.equals("EXTENDER_VERDE")) {
-                    sem.put("verde_seg", 30);
-                    System.out.println("[SEMAFOROS] " + interseccion + " verde extendido a 30s por congestion.");
-                } else if (accion.equals("OLA_VERDE")) {
-                    sem.put("verde_seg", 45);
-                    sem.put("luz", "VERDE"); // Fuerzo verde inmediatamente
-                    sem.put("ultimo_cambio", System.currentTimeMillis() / 1000.0);
-                    System.out.println("[SEMAFOROS] " + interseccion + " OLA VERDE (45s) priorizada!");
                 } else {
                     System.out.println("[SEMAFOROS] Accion desconocida: " + accion);
                 }
