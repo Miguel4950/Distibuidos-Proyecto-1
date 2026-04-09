@@ -114,14 +114,15 @@ scp -r pc3/ usuario@IP_PC3:~/trafico/
 
 ## 4. Compilación
 
-En **cada máquina virtual**, compilar el proyecto con Maven:
+En **cada máquina virtual**, abre una terminal para compilar los módulos de Java con Maven:
 
 ```bash
-cd ~/trafico/
+# Ejemplo si estás en PC1:
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
 mvn compile
 ```
 
-Maven descargará automáticamente las dependencias (JeroMQ, org.json, sqlite-jdbc).
+Maven descargará automáticamente las dependencias (JeroMQ, org.json, sqlite-jdbc). Haz esto en la carpeta `pc2` y `pc3` en sus respectivas máquinas.
 
 ---
 
@@ -133,7 +134,7 @@ Maven descargará automáticamente las dependencias (JeroMQ, org.json, sqlite-jd
 
 ```bash
 # Terminal de PC3:
-cd ~/trafico/
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc3
 mvn exec:java -Dexec.mainClass="BdPrincipal"
 ```
 
@@ -141,15 +142,15 @@ mvn exec:java -Dexec.mainClass="BdPrincipal"
 
 ```bash
 # Terminal 1 de PC2:
-cd ~/trafico/
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn exec:java -Dexec.mainClass="BdReplica"
 
 # Terminal 2 de PC2 (abrir nueva terminal):
-cd ~/trafico/
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn exec:java -Dexec.mainClass="ControlSemaforos"
 
 # Terminal 3 de PC2 (abrir nueva terminal):
-cd ~/trafico/
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn exec:java -Dexec.mainClass="Analitica"
 ```
 
@@ -157,11 +158,11 @@ mvn exec:java -Dexec.mainClass="Analitica"
 
 ```bash
 # Terminal 1 de PC1:
-cd ~/trafico/
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
 mvn exec:java -Dexec.mainClass="BrokerMultihilo"
 
 # Terminal 2 de PC1 (abrir nueva terminal):
-cd ~/trafico/
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
 mvn exec:java -Dexec.mainClass="Sensores"
 ```
 
