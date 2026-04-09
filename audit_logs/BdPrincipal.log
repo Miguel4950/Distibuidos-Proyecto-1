@@ -1,0 +1,40 @@
+============================================================
+  BASE DE DATOS PRINCIPAL - PC3 (Persistencia)
+============================================================
+  PULL datos:    tcp://127.0.0.1:5570
+  Archivo BD:    trafico.db
+============================================================
+[BD-PRINCIPAL] Error creando tablas: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Servicio corriendo. Ctrl+C para detener.
+
+[BD-PRINCIPAL] PULL esperando datos en tcp://127.0.0.1:5570
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-B3 | espira | NORMAL | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-D2 | camara | NORMAL | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-A1 | camara | INTERMEDIO | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-B3 | gps | INTERMEDIO | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-C5 | camara | CONGESTION | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-E4 | camara | CONGESTION | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-A1 | gps | INTERMEDIO | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-C5 | espira | CONGESTION | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-B3 | camara | CONGESTION | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-D2 | gps | INTERMEDIO | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-D2 | espira | INTERMEDIO | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-E4 | gps | CONGESTION | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-E4 | espira | CONGESTION | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-A1 | espira | INTERMEDIO | Total: 0
+[BD-PRINCIPAL] Error guardando: No suitable driver found for jdbc:sqlite:trafico.db
+[BD-PRINCIPAL] Guardado: INT-C5 | gps | CONGESTION | Total: 0

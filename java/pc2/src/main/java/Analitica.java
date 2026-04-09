@@ -52,30 +52,22 @@ public class Analitica {
     //   q  = longitud de cola (vehiculos en espera) - viene de la camara
     //   vp = velocidad promedio (km/h) - viene de camara y gps
     //   d  = densidad de trafico (veh/km) - viene del gps
-    //
-    // reglas:
-    //   normal:     q < 5  and vp > 35 and d < 20
-    //   congestion: q >= 10 or  vp <= 15 or  d >= 40
-    //   intermedio: cualquier otro caso
     static String evaluarTrafico(int Q, double Vp, int D) {
-        // primero verifico si hay congestion (tiene prioridad)
         if (Q >= 10 || Vp <= 15 || D >= 40) {
             return "CONGESTION";
         }
-        // si todo esta tranquilo, es trafico normal
         if (Q < 5 && Vp > 35 && D < 20) {
             return "NORMAL";
         }
-        // si no es ni una ni otra, es un estado intermedio
         return "INTERMEDIO";
     }
 
+
     // crea un comando para enviar al servicio de semaforos.
-    // dependiendo del estado, cambio la duracion del verde:
-    //   normal -> 15 segundos (ciclo normal)
-    //   congestion -> 30 segundos (verde extendido)
-    //   priorizacion -> 45 segundos (ola verde)
+    // devuelve null si el estado es INTERMEDIO.
     static JSONObject crearComandoSemaforo(String interseccion, String estado) {
+        if (estado.equals("INTERMEDIO")) return null;
+
         JSONObject cmd = new JSONObject();
         cmd.put("interseccion", interseccion);
         cmd.put("timestamp", timestampAhora());
@@ -84,15 +76,16 @@ public class Analitica {
             cmd.put("accion", "EXTENDER_VERDE");
             cmd.put("duracion_verde", 30);
             cmd.put("motivo", "Congestion detectada");
-        } else if (estado.equals("PRIORIZACION")) {
-            cmd.put("accion", "OLA_VERDE");
-            cmd.put("duracion_verde", 45);
-            cmd.put("motivo", "Paso de emergencia");
-        } else {
+        } else if (estado.equals("NORMAL")) {
             cmd.put("accion", "CICLO_NORMAL");
             cmd.put("duracion_verde", 15);
             cmd.put("motivo", "Trafico normal");
+        } else if (estado.equals("OLA_VERDE")) {
+            cmd.put("accion", "OLA_VERDE");
+            cmd.put("duracion_verde", 45);
+            cmd.put("motivo", "Paso de emergencia");
         }
+        
         return cmd;
     }
 
@@ -255,121 +248,25 @@ public class Analitica {
                 } else {
                     System.out.println("[ANALITICA] PC3 sigue caido, datos en replica");
                 }
-            }
+                        // verifico si hubo un cambio de estado
+                    if (!estadoNuevo.equals(estadoAnterior)) {
+                        datosIntersecciones.get(interseccion).put("estado", estadoNuevo);
 
-            // si cambio el estado, envio comando al semaforo
-            if (!estadoNuevo.equals(estadoAnterior) || estadoNuevo.equals("CONGESTION")) {
-                JSONObject comando = crearComandoSemaforo(interseccion, estadoNuevo);
-                try {
-                    pushSemaforos.send(comando.toString());
-                    System.out.println("[ANALITICA] -> Comando enviado al semaforo: " + comando.getString("accion"));
-                } catch (Exception e) {
-                    System.out.println("[ANALITICA] Error enviando al semaforo: " + e.getMessage());
-                }
-            }
-        }
-    }
-
-    // este hilo atiende las solicitudes del servicio de monitoreo.
-    // usa el patron req/rep. el monitoreo puede:
-    //   - pedir el estado actual de una interseccion
-    //   - forzar un cambio de semaforo (ambulancia)
-    static void hiloAtenderMonitoreo(ZContext contexto) {
-        // socket rep para recibir solicitudes del monitoreo
-        ZMQ.Socket socketRep = contexto.createSocket(SocketType.REP);
-        socketRep.setSendTimeOut(3000);
-        socketRep.setReceiveTimeOut(3000);
-        socketRep.bind("tcp://" + ANALITICA_IP + ":5560");
-
-        // socket push para reenviar comandos al semaforo
-        ZMQ.Socket pushSemaforos = contexto.createSocket(SocketType.PUSH);
-        pushSemaforos.connect("tcp://" + ANALITICA_IP + ":5563");
-
-        // uso un poller para no quedarme bloqueado
-        ZMQ.Poller poller = contexto.createPoller(1);
-        poller.register(socketRep, ZMQ.Poller.POLLIN);
-
-        System.out.println("[ANALITICA-REP] Esperando comandos de monitoreo en tcp://" + ANALITICA_IP + ":5560");
-
-        while (true) {
-            // espero hasta 2 segundos
-            poller.poll(2000);
-            if (!poller.pollin(0)) continue;
-
-            // recibo la solicitud del monitoreo
-            String msg = socketRep.recvStr();
-            if (msg == null) continue;
-            JSONObject solicitud = new JSONObject(msg);
-            String tipo = solicitud.optString("tipo", "");
-
-            JSONObject respuesta = new JSONObject();
-
-            if (tipo.equals("PRIORIZACION")) {
-                // el usuario quiere priorizar una via (ej. ambulancia)
-                String interseccion = solicitud.optString("interseccion", "");
-                String motivo = solicitud.optString("motivo", "Priorizacion");
-
-                System.out.println("\n[ANALITICA-REP] PRIORIZACION para " + interseccion + ": " + motivo);
-
-                // actualizo el estado de la interseccion
-                lock.lock();
-                try {
-                    if (datosIntersecciones.containsKey(interseccion)) {
-                        datosIntersecciones.get(interseccion).put("estado", "PRIORIZACION");
+                        // envio un comando al equipo de semaforos local en pc2
+                        JSONObject comando = crearComandoSemaforo(interseccion, estadoNuevo);
+                        if (comando != null) {
+                            try {
+                                pushSemaforos.send(comando.toString());
+                                System.out.println("[ANALITICA] -> Comando semaforo enviado: " + comando.getString("accion"));
+                            } catch (Exception e) {
+                                // no se pudo enviar, continuo
+                            }
+                        }
                     }
-                } finally {
-                    lock.unlock();
-                }
-
-                // envio comando de ola verde al semaforo
-                JSONObject comando = crearComandoSemaforo(interseccion, "PRIORIZACION");
-                try {
-                    pushSemaforos.send(comando.toString());
-                    System.out.println("[ANALITICA-REP] -> OLA VERDE enviada para " + interseccion);
-                } catch (Exception e) {
-                    // nada
-                }
-
-                // respondo al monitoreo
-                respuesta.put("status", "OK");
-                respuesta.put("mensaje", "Priorizacion activada en " + interseccion);
-                respuesta.put("comando", comando);
-                socketRep.send(respuesta.toString());
-
-            } else if (tipo.equals("ESTADO_ACTUAL")) {
-                // el usuario quiere saber el estado de una interseccion
-                String interseccion = solicitud.optString("interseccion", "");
-                System.out.println("[ANALITICA-REP] Consulta de estado: " + interseccion);
-
-                lock.lock();
-                HashMap<String, Object> datos = null;
-                try {
-                    datos = datosIntersecciones.get(interseccion);
-                } finally {
-                    lock.unlock();
-                }
-
-                if (datos != null) {
-                    respuesta.put("status", "OK");
-                    respuesta.put("interseccion", interseccion);
-                    respuesta.put("Q", datos.get("Q"));
-                    respuesta.put("Vp", Math.round((double) datos.get("Vp") * 10.0) / 10.0);
-                    respuesta.put("D", datos.get("D"));
-                    respuesta.put("estado_trafico", datos.get("estado"));
-                } else {
-                    respuesta.put("status", "OK");
-                    respuesta.put("mensaje", "No hay datos para " + interseccion);
-                }
-                socketRep.send(respuesta.toString());
-
-            } else {
-                // tipo desconocido
-                respuesta.put("status", "ERROR");
-                respuesta.put("mensaje", "No entiendo: " + tipo);
-                socketRep.send(respuesta.toString());
             }
         }
     }
+
 
     public static void main(String[] args) {
         System.out.println("============================================================");
@@ -379,12 +276,9 @@ public class Analitica {
         System.out.println("  BD Principal: tcp://" + BD_PRINCIPAL_IP + ":5570");
         System.out.println("  BD Replica:   tcp://" + ANALITICA_IP + ":5562");
         System.out.println("  Semaforos:    tcp://" + ANALITICA_IP + ":5563");
-        System.out.println("  Monitoreo:    tcp://" + ANALITICA_IP + ":5560");
         System.out.println("============================================================");
         System.out.println("  Reglas de trafico:");
         System.out.println("    NORMAL:     Q < 5  AND Vp > 35 AND D < 20");
-        System.out.println("    CONGESTION: Q >= 10 OR Vp <= 15 OR D >= 40");
-        System.out.println("    PRIORIZACION: Comando directo de monitoreo");
         System.out.println("============================================================");
 
         ZContext contexto = new ZContext();
@@ -393,11 +287,6 @@ public class Analitica {
         Thread t1 = new Thread(() -> hiloRecibirSensores(contexto));
         t1.setDaemon(true);
         t1.start();
-
-        // inicio el hilo que atiende al monitoreo
-        Thread t2 = new Thread(() -> hiloAtenderMonitoreo(contexto));
-        t2.setDaemon(true);
-        t2.start();
 
         System.out.println("\n[ANALITICA] Servicio corriendo. Ctrl+C para detener.\n");
 

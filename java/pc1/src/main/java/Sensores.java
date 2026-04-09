@@ -57,8 +57,8 @@ public class Sensores {
         evento.put("sensor_id", "CAM-" + fila + col);
         evento.put("tipo_sensor", "camara");
         evento.put("interseccion", "INT-" + fila + col);
-        evento.put("volumen", random.nextInt(31));                    // q - vehiculos en cola
-        evento.put("velocidad_promedio", Math.round(random.nextDouble() * 50 * 10.0) / 10.0);  // vp - km/h
+        evento.put("volumen", random.nextInt(31)); // q - vehiculos en cola (0-30 segun documento)
+        evento.put("velocidad_promedio", Math.round(random.nextDouble() * 50 * 10.0) / 10.0); // vp (0-50 km/h segun documento)
         evento.put("timestamp", timestampAhora());
         return evento;
     }
@@ -80,22 +80,22 @@ public class Sensores {
 
     // genera un evento del sensor gps.
     // mide velocidad promedio (vp) y densidad de trafico (d).
-    // el nivel de congestion se determina por la velocidad.
     static JSONObject generarEventoGps(String fila, int col) {
+        // Velocidad entre 0.0 y 60.0 km/h segun doc
         double velocidad = Math.round(random.nextDouble() * 60 * 10.0) / 10.0;
 
-        // determino el nivel de congestion segun la velocidad
+        // Densidad dependiendo de la velocidad segun documento
         String nivel;
         int densidad;
         if (velocidad < 10) {
             nivel = "ALTA";
-            densidad = 40 + random.nextInt(41);
-        } else if (velocidad <= 40) {
+            densidad = 40 + random.nextInt(41); // 40 a 80
+        } else if (velocidad < 40) {
             nivel = "NORMAL";
-            densidad = 15 + random.nextInt(31);
+            densidad = 15 + random.nextInt(31); // 15 a 45
         } else {
             nivel = "BAJA";
-            densidad = 1 + random.nextInt(20);
+            densidad = 1 + random.nextInt(20);  // 1 a 20
         }
 
         JSONObject evento = new JSONObject();

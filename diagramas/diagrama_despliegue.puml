@@ -1,0 +1,54 @@
+@startuml diagrama_despliegue
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 13
+skinparam classAttributeFontSize 11
+skinparam classFontStyle bold
+skinparam backgroundColor white
+skinparam artifact {
+    BackgroundColor #FEFECE
+    BorderColor #A80036
+}
+skinparam node {
+    BackgroundColor white
+    BorderColor #A80036
+}
+skinparam database {
+    BackgroundColor #FEFECE
+    BorderColor #A80036
+}
+
+node "Máquina 1 (Ubuntu VM)" as PC1 {
+    artifact "pc1-1.0-SNAPSHOT.jar" {
+        component "Sensores"
+        component "BrokerMultihilo"
+    }
+}
+
+node "Máquina 2 (Ubuntu VM)" as PC2 {
+    artifact "pc2-1.0-SNAPSHOT.jar" {
+        component "Analítica"
+        component "ControlSemáforos"
+        component "BdRéplica"
+    }
+    database "SQLite " as SQL2 {
+        artifact "replica.db"
+    }
+    BdRéplica -.-> SQL2
+}
+
+node "Máquina 3 (Ubuntu VM) [Principal]" as PC3 {
+    artifact "pc3-1.0-SNAPSHOT.jar" {
+        component "BdPrincipal"
+        component "Monitoreo"
+    }
+    database "SQLite" as SQL3 {
+        artifact "trafico.db"
+    }
+    BdPrincipal -.-> SQL3
+}
+
+PC1 == PC2 : "TCP/IP (ZMQ PUB/SUB)"
+PC2 == PC3 : "TCP/IP (ZMQ PUSH/REQ)"
+
+@enduml

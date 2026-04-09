@@ -1,0 +1,55 @@
+@startuml diagrama_componentes
+
+skinparam componentStyle uml2
+skinparam classAttributeIconSize 0
+skinparam classFontSize 13
+skinparam classAttributeFontSize 11
+skinparam classFontStyle bold
+skinparam backgroundColor white
+skinparam component {
+    BackgroundColor #FEFECE
+    BorderColor #A80036
+    ArrowColor #A80036
+}
+skinparam node {
+    BackgroundColor white
+    BorderColor #A80036
+}
+skinparam database {
+    BackgroundColor #FEFECE
+    BorderColor #A80036
+}
+
+node "PC1 - Máquina 1" <<Device>> {
+    [Sensores de Tráfico] <<Proceso>> as Sensores
+    [Broker ZeroMQ] <<Proceso>> as Broker
+}
+
+node "PC2 - Máquina 2" <<Device>> {
+    [Analítica] <<Proceso>> as Analitica
+    [Control Semáforos] <<Proceso>> as Semaforos
+    database "SQLite (Réplica)" {
+        [BdReplica] <<Persistencia>>
+    }
+}
+
+node "PC3 - Máquina 3" <<Device>> {
+    database "SQLite (Principal)" {
+        [BdPrincipal] <<Persistencia>>
+    }
+    [Módulo de Monitoreo] <<Proceso>> as Monitoreo
+}
+
+' Conexiones patrón ZMQ
+Sensores --> Broker : PUB/SUB
+Broker --> Analitica : XSUB/XPUB
+
+Analitica --> Semaforos : PUSH/PULL
+Analitica --> BdPrincipal : PUSH/PULL
+Analitica --> BdReplica : PUSH/PULL
+
+Monitoreo --> Analitica : REQ/REP
+Monitoreo --> BdPrincipal : REQ/REP
+Monitoreo ..> BdReplica : REQ/REP (failover)
+
+@enduml

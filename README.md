@@ -10,13 +10,13 @@ Sistema distribuido en 3 máquinas virtuales (PC1, PC2, PC3) que monitorea, anal
 PC1 (Ingesta)           PC2 (Cerebro)              PC3 (Persistencia)
 ┌─────────────┐    PUB/SUB    ┌─────────────────┐   PUSH/PULL   ┌──────────────┐
 │  Sensores   │──────────────→│   Analítica     │──────────────→│ BD Principal │
-│  (PUB)      │               │   (SUB/PUSH/REP)│               │ (PULL/REP)   │
-├─────────────┤               ├─────────────────┤               ├──────────────┤
-│   Broker    │               │ Control Semáf.  │               │  Monitoreo   │
-│ (XSUB/XPUB)│               │   (PULL)        │               │  (REQ)       │
-└─────────────┘               ├─────────────────┤               └──────────────┘
+│  (PUB)      │               │   (SUB/PUSH)    │               │ (PULL)       │
+├─────────────┤               ├─────────────────┤               └──────────────┘
+│   Broker    │               │ Control Semáf.  │               
+│ (XSUB/XPUB)│               │   (PULL)        │               
+└─────────────┘               ├─────────────────┤               
                               │  BD Réplica     │
-                              │ (PULL/REP)      │
+                              │ (PULL)          │
                               └─────────────────┘
 ```
 
@@ -57,7 +57,7 @@ Antes de ejecutar el sistema, **debes cambiar las IPs** en los archivos `.java` 
 |---------|-------------------|----------------------|
 | PC1     | `10.43.98.198`    | Ingesta (sensores + broker) |
 | PC2     | `10.43.98.199`    | Cerebro (analítica + semáforos + réplica) |
-| PC3     | `10.43.99.183`    | Persistencia (BD principal + monitoreo) |
+| PC3     | `10.43.99.183`    | Persistencia (BD principal) |
 
 ### Archivos a modificar por PC
 
@@ -91,11 +91,6 @@ static String REPLICA_IP = "TU_IP_PC2";
 ```java
 // En BdPrincipal.java
 static String BD_IP = "TU_IP_PC3";
-
-// En Monitoreo.java
-static String ANALITICA_IP = "IP_DEL_PC2";
-static String BD_PRINCIPAL_IP = "TU_IP_PC3";
-static String BD_REPLICA_IP = "IP_DEL_PC2";
 ```
 
 ---
@@ -137,13 +132,9 @@ Maven descargará automáticamente las dependencias (JeroMQ, org.json, sqlite-jd
 ### Paso 1: Iniciar PC3 (Persistencia)
 
 ```bash
-# Terminal 1 de PC3:
+# Terminal de PC3:
 cd ~/trafico/
 mvn exec:java -Dexec.mainClass="BdPrincipal"
-
-# Terminal 2 de PC3 (abrir nueva terminal):
-cd ~/trafico/
-mvn exec:java -Dexec.mainClass="Monitoreo"
 ```
 
 ### Paso 2: Iniciar PC2 (Cerebro)
@@ -178,23 +169,16 @@ mvn exec:java -Dexec.mainClass="Sensores"
 
 ## 6. Verificación de Funcionamiento
 
-### 6.1 Flujo normal
-1. Los sensores (PC1) deben imprimir eventos generados cada 10 segundos.
-2. La analítica (PC2) debe imprimir los eventos recibidos y el estado de tráfico evaluado.
-3. El control de semáforos (PC2) debe imprimir cambios de estado.
-4. Las BDs (PC2 y PC3) deben imprimir confirmaciones de inserción.
-5. El monitoreo (PC3) permite realizar consultas interactivas.
+### 6.1 Flujo Operativo y Detección
+1. Los sensores (PC1) publican eventos generados cada 10 segundos con valores aleatorios ajustados orgánicamente para simular una red urbana (volumen vehícular 0-30, velocidad 0-60km/h).
+2. La analítica (PC2) enruta y evalúa estas métricas en tiempo real e imprime transiciones dinámicas entre los estados: NORMAL, INTERMEDIO o CONGESTION.
+3. El control de semáforos (PC2) ejecuta el ciclo automático base (15s); si ocurre una emergencia o alto volumen vehicular, obedece comandos de la analítica como extender el verde a 30s.
+4. Las BDs Principal y Réplica (PC2 y PC3) persisten ininterrumpidamente cada evento procesado para fines de monitoreo histórico.
 
 ### 6.2 Prueba de enmascaramiento de fallos
 1. Con el sistema funcionando, **detener** `BdPrincipal` en PC3 (Ctrl+C).
-2. Verificar que la analítica (PC2) imprime el mensaje de **ENMASCARAMIENTO DE FALLOS**.
-3. Los datos deben seguir guardándose en la BD réplica (PC2).
-4. En el monitoreo (PC3), intentar una consulta → debe reconectarse automáticamente a la BD réplica.
-
-### 6.3 Prueba de priorización (ambulancia)
-1. En el menú del monitoreo, seleccionar opción 4.
-2. Ingresar una intersección (ej. `INT-C5`).
-3. Verificar que la analítica recibe el comando y envía la orden de OLA VERDE al semáforo.
+2. Verificar que la analítica (PC2) imprime el mensaje de reconexión manual / error.
+3. Los datos deben seguir guardándose ininterrumpidamente en la BD réplica (PC2).
 
 ---
 
@@ -205,7 +189,7 @@ Para detener cada servicio, presionar **Ctrl+C** en la terminal correspondiente.
 Orden de detención recomendado (inverso al de inicio):
 1. Detener sensores y broker (PC1)
 2. Detener analítica, semáforos y réplica (PC2)
-3. Detener monitoreo y BD principal (PC3)
+3. Detener BD principal (PC3)
 
 ---
 
@@ -243,8 +227,7 @@ java/
 └── pc3/
     ├── pom.xml
     └── src/main/java/
-        ├── BdPrincipal.java
-        └── Monitoreo.java
+        └── BdPrincipal.java
 ```
 
 ## Autores

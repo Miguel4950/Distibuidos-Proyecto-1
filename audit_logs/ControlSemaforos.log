@@ -1,0 +1,9 @@
+============================================================
+  CONTROL DE SEMAFOROS - PC2
+============================================================
+  PULL desde analitica: tcp://127.0.0.1:5563
+  Ciclos: Normal=15s
+============================================================
+[SEMAFOROS] Servicio corriendo. Ctrl+C para detener.
+
+[SEMAFOROS] Esperando comandos en tcp://127.0.0.1:5563

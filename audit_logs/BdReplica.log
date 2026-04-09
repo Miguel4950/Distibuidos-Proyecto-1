@@ -1,0 +1,40 @@
+============================================================
+  BASE DE DATOS REPLICA - PC2
+============================================================
+  PULL datos:    tcp://127.0.0.1:5562
+  Archivo BD:    replica.db
+============================================================
+[BD-REPLICA] Error creando tablas: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Servicio corriendo. Ctrl+C para detener.
+
+[BD-REPLICA] PULL esperando datos en tcp://127.0.0.1:5562
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-B3 | NORMAL | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-D2 | NORMAL | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-A1 | INTERMEDIO | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-B3 | INTERMEDIO | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-C5 | CONGESTION | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-E4 | CONGESTION | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-A1 | INTERMEDIO | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-C5 | CONGESTION | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-B3 | CONGESTION | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-D2 | INTERMEDIO | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-D2 | INTERMEDIO | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-E4 | CONGESTION | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-E4 | CONGESTION | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-A1 | INTERMEDIO | Total: 0
+[BD-REPLICA] Error guardando: No suitable driver found for jdbc:sqlite:replica.db
+[BD-REPLICA] Guardado: INT-C5 | CONGESTION | Total: 0

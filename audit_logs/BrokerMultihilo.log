@@ -1,0 +1,12 @@
+============================================================
+  BROKER MULTIHILO - PC1 (Ingesta de datos)
+============================================================
+  Sensores (XSUB) -> tcp://127.0.0.1:5555
+  Analitica (XPUB) -> tcp://127.0.0.1:5556
+============================================================
+[METRICAS] Hilo de metricas iniciado
+[BROKER] Broker corriendo. Presione Ctrl+C para detener.
+
+[BROKER] XSUB esperando sensores en tcp://127.0.0.1:5555
+[BROKER] XPUB esperando suscriptores en tcp://127.0.0.1:5556
+[BROKER] Proxy iniciado manual, reenviando mensajes...

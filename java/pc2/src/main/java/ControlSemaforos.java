@@ -5,8 +5,6 @@
 //
 // los semaforos alternan entre verde y rojo:
 //   - ciclo normal: 15 segundos verde, 15 segundos rojo
-//   - congestion: 30 segundos verde
-//   - priorizacion (ambulancia): 45 segundos verde
 //
 // autores: miguel angel acuna, juan david acuna, y samuel felipe manrique - sistemas distribuidos 2026-10
 
@@ -73,8 +71,6 @@ public class ControlSemaforos {
     // este hilo recibe comandos de la analitica usando pull.
     // los comandos pueden ser:
     //   - ciclo_normal: volver al ciclo de 15s
-    //   - extender_verde: poner verde por 30s (congestion)
-    //   - ola_verde: verde inmediato por 45s (ambulancia)
     static void hiloRecibirComandos(ZContext contexto) {
         // socket pull para recibir comandos
         ZMQ.Socket socket = contexto.createSocket(SocketType.PULL);
@@ -120,27 +116,18 @@ public class ControlSemaforos {
 
                 HashMap<String, Object> sem = semaforos.get(interseccion);
 
-                if (accion.equals("OLA_VERDE")) {
-                    // priorizacion: verde inmediato con duracion extendida
-                    sem.put("luz", "VERDE");
-                    sem.put("verde_seg", verdeSeg);
-                    sem.put("ultimo_cambio", System.currentTimeMillis() / 1000.0);
-                    System.out.println("[SEMAFOROS] " + interseccion + ": OLA VERDE activada (" + verdeSeg + "s)");
-                    System.out.println("[SEMAFOROS] Motivo: " + motivo);
-
-                } else if (accion.equals("EXTENDER_VERDE")) {
-                    // congestion: extiendo el verde
-                    sem.put("luz", "VERDE");
-                    sem.put("verde_seg", verdeSeg);
-                    sem.put("ultimo_cambio", System.currentTimeMillis() / 1000.0);
-                    System.out.println("[SEMAFOROS] " + interseccion + ": Verde extendido a " + verdeSeg + "s");
-
-                } else if (accion.equals("CICLO_NORMAL")) {
-                    // vuelvo al ciclo normal
+                if (accion.equals("CICLO_NORMAL")) {
+                    // mantengo ciclo normal
                     sem.put("verde_seg", 15);
                     sem.put("rojo_seg", 15);
-                    System.out.println("[SEMAFOROS] " + interseccion + ": Ciclo normal restaurado (15s)");
-
+                } else if (accion.equals("EXTENDER_VERDE")) {
+                    sem.put("verde_seg", 30);
+                    System.out.println("[SEMAFOROS] " + interseccion + " verde extendido a 30s por congestion.");
+                } else if (accion.equals("OLA_VERDE")) {
+                    sem.put("verde_seg", 45);
+                    sem.put("luz", "VERDE"); // Fuerzo verde inmediatamente
+                    sem.put("ultimo_cambio", System.currentTimeMillis() / 1000.0);
+                    System.out.println("[SEMAFOROS] " + interseccion + " OLA VERDE (45s) priorizada!");
                 } else {
                     System.out.println("[SEMAFOROS] Accion desconocida: " + accion);
                 }
@@ -155,7 +142,7 @@ public class ControlSemaforos {
         System.out.println("  CONTROL DE SEMAFOROS - PC2");
         System.out.println("============================================================");
         System.out.println("  PULL desde analitica: tcp://" + ANALITICA_IP + ":5563");
-        System.out.println("  Ciclos: Normal=15s | Congestion=30s | Emergencia=45s");
+        System.out.println("  Ciclos: Normal=15s");
         System.out.println("============================================================");
 
         ZContext contexto = new ZContext();

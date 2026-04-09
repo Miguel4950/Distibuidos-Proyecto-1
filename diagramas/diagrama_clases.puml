@@ -1,0 +1,115 @@
+@startuml diagrama_clases
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 13
+skinparam classAttributeFontSize 11
+skinparam classFontStyle bold
+skinparam backgroundColor white
+skinparam class {
+    BackgroundColor #FEFECE
+    BorderColor #A80036
+    ArrowColor #A80036
+}
+
+' ===================== PC1 =====================
+
+class Sensores {
+    BROKER_IP : String
+    PUERTO_BROKER : int
+    INTERVALO : int
+    FILAS : String[]
+    COLUMNAS : int[]
+    INTERSECCIONES : String[][]
+    --
+    generarEventoCamara()
+    generarEventoEspira()
+    generarEventoGps()
+    ejecutarSensor()
+}
+
+class BrokerMultihilo {
+    BROKER_IP : String
+    PUERTO_XSUB : int
+    PUERTO_XPUB : int
+    contadorMensajes : int
+    lockContador : ReentrantLock
+    --
+    hiloMetricas()
+    hiloProxy()
+}
+
+' ===================== PC2 =====================
+
+class Analitica {
+    BROKER_IP : String
+    ANALITICA_IP : String
+    BD_PRINCIPAL_IP : String
+    datosIntersecciones : HashMap<String, HashMap>
+    pc3EstaVivo : boolean
+    lock : ReentrantLock
+    --
+    evaluarTrafico()
+    crearComandoSemaforo()
+    hiloRecibirSensores()
+    hiloAtenderMonitoreo()
+}
+
+class ControlSemaforos {
+    ANALITICA_IP : String
+    semaforos : HashMap<String, HashMap>
+    lock : ReentrantLock
+    --
+    hiloCicloAutomatico()
+    hiloRecibirComandos()
+}
+
+' ===================== PC3 =====================
+
+class BdPrincipal {
+    BD_IP : String
+    PUERTO_PULL : int
+    PUERTO_REP : int
+    BD_ARCHIVO : String
+    --
+    crearTablas()
+    guardarEvento()
+    hiloRecibirDatos()
+    hiloConsultas()
+}
+
+class BdReplica {
+    REPLICA_IP : String
+    PUERTO_PULL : int
+    PUERTO_REP : int
+    BD_ARCHIVO : String
+    --
+    crearTablas()
+    guardarEvento()
+    hiloRecibirDatos()
+    hiloConsultas()
+}
+
+class Monitoreo {
+    ANALITICA_IP : String
+    BD_PRINCIPAL_IP : String
+    BD_REPLICA_IP : String
+    TIMEOUT : int
+    usandoReplica : boolean
+    --
+    crearSocket()
+    consultarBd()
+    mostrarMenu()
+}
+
+' ===================== RELACIONES =====================
+
+Sensores --> BrokerMultihilo : PUB/SUB
+BrokerMultihilo --> Analitica : XSUB/XPUB
+Analitica --> ControlSemaforos : PUSH/PULL
+Analitica --> BdPrincipal : PUSH/PULL
+Analitica --> BdReplica : PUSH/PULL
+Monitoreo --> Analitica : REQ/REP
+Monitoreo --> BdPrincipal : REQ/REP
+Monitoreo ..> BdReplica : REQ/REP\n(failover)
+
+@enduml

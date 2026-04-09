@@ -1,0 +1,60 @@
+@startuml diagrama_secuencias
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 13
+skinparam classAttributeFontSize 11
+skinparam classFontStyle bold
+skinparam backgroundColor white
+skinparam participant {
+    BackgroundColor #FEFECE
+    BorderColor #A80036
+}
+skinparam sequence {
+    ArrowColor #A80036
+    LifeLineBorderColor #A80036
+    LifeLineBackgroundColor #FEFECE
+}
+
+actor "Timer" as Timer
+participant "Sensores (PC1)" as Sensores
+participant "Broker (PC1)" as Broker
+participant "Analítica (PC2)" as Analitica
+participant "Semáforos (PC2)" as Semaforos
+participant "BdPrincipal (PC3)" as BD1
+participant "BdRéplica (PC2)" as BDR
+participant "Monitoreo (PC3)" as Monitoreo
+
+Timer -> Sensores : Generar Evento
+activate Sensores
+Sensores -> Broker : PUB (json)
+deactivate Sensores
+
+activate Broker
+Broker -> Analitica : XPUB->SUB (json)
+deactivate Broker
+
+activate Analitica
+Analitica -> Analitica : Evaluar Tráfico
+
+Analitica -> Semaforos : PUSH (Comandos)
+Semaforos --> Semaforos : Ajustar Semáforo
+
+Analitica -> BD1 : PUSH (json) con Timeout
+Analitica -> BDR : PUSH (json) sin Timeout
+
+alt Si BDPrincipal (PC3) cae
+    BD1 X-- Analitica : Excepción
+    Analitica -> BDR : "Fallo enmascarado"
+end
+
+deactivate Analitica
+
+== Interacción Usuario (Monitoreo) ==
+Monitoreo -> BdPrincipal : REQ (Consulta)
+BdPrincipal --> Monitoreo : REP (Resultados)
+
+Monitoreo -> Analitica : REQ (Priorización)
+Analitica -> Semaforos : PUSH (OLA_VERDE)
+Analitica --> Monitoreo : REP (OK)
+
+@enduml
