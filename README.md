@@ -62,15 +62,15 @@ En **cada máquina virtual**, abre una terminal en la carpeta correspondiente pa
 
 ```bash
 # Ejemplo en PC1:
-cd ~/trafico/java/pc1
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
 mvn compile
 
 # Ejemplo en PC2:
-cd ~/trafico/java/pc2
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn compile
 
 # Ejemplo en PC3:
-cd ~/trafico/java/pc3
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc3
 mvn compile
 ```
 
@@ -84,7 +84,7 @@ mvn compile
 Inicia el motor de persistencia principal:
 ```bash
 # Terminal de PC3:
-cd ~/trafico/java/pc3
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc3
 mvn exec:java -Dexec.mainClass="BdPrincipal"
 ```
 
@@ -92,12 +92,15 @@ mvn exec:java -Dexec.mainClass="BdPrincipal"
 Abre 3 terminales en el PC2 y arranca los servicios en este orden:
 ```bash
 # Terminal 1 (BD Réplica):
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn exec:java -Dexec.mainClass="BdReplica"
 
 # Terminal 2 (Controlador de Semáforos):
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn exec:java -Dexec.mainClass="ControlSemaforos"
 
 # Terminal 3 (Servicio de Analítica):
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
 mvn exec:java -Dexec.mainClass="Analitica"
 ```
 
@@ -105,10 +108,11 @@ mvn exec:java -Dexec.mainClass="Analitica"
 Abre 2 terminales en el PC1:
 ```bash
 # Terminal 1 (Broker Multihilo):
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
 mvn exec:java -Dexec.mainClass="BrokerMultihilo"
 
 # Terminal 2 (Simulación de Sensores):
-# Para ejecutar en modo normal:
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
 mvn exec:java -Dexec.mainClass="Sensores"
 ```
 
@@ -116,6 +120,7 @@ mvn exec:java -Dexec.mainClass="Sensores"
 Arranca la consola interactiva del operador:
 ```bash
 # Abrir otra terminal en PC3:
+cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc3
 mvn exec:java -Dexec.mainClass="MonitoreoConsulta"
 ```
 
