@@ -1,12 +1,12 @@
-// broker_multihilo.java - broker zeromq para el pc1 (ingesta de datos)
+// broker_multihilo.java - broker zeromq para el pc1 ingesta de datos
 //
 // este script actua como intermediario entre los sensores y el
-// servicio de analitica.
-// usa xsub/xpub para reenviar los mensajes sin procesarlos.
+// servicio de analitica
+// usa sub/pub para reenviar los mensajes sin procesarlos
 //
 // tiene un diseno multihilo:
-//   - un hilo para el proxy (reenviar mensajes)
-//   - un hilo para contar mensajes (metricas de rendimiento)
+//   - un hilo para el proxy reenviar mensajes
+//   - un hilo para contar mensajes metricas de rendimiento
 //
 // autores: miguel angel acuna, juan david acuna, y samuel felipe manrique - sistemas distribuidos 2026-10
 
@@ -18,19 +18,17 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class BrokerMultihilo {
 
-    // ============================================================
     // configuracion de red - cambiar segun la ip del pc1
-    // ============================================================
     static String BROKER_IP = "10.43.98.198";
-    static int PUERTO_XSUB = 5555;   // aqui se conectan los sensores (pub)
-    static int PUERTO_XPUB = 5556;   // aqui se conecta la analitica (sub)
+    static int PUERTO_SUB = 5555;   // aqui se conectan los sensores pub
+    static int PUERTO_PUB = 5556;   // aqui se conecta la analitica sub
 
     // variable global para el contador
     static int contadorMensajes = 0;
     static ReentrantLock lockContador = new ReentrantLock();
 
     // este hilo simplemente imprime el valor del contador
-    // global cada 30 segundos.
+    // global cada 30 segundos
     static void hiloMetricas() {
         System.out.println("[METRICAS] Hilo de metricas iniciado");
 
@@ -51,34 +49,34 @@ public class BrokerMultihilo {
         }
     }
 
-    // este hilo es el proxy principal del broker.
+    // este hilo es el proxy principal del broker
     // recibe mensajes de los sensores y los reenvia manualmente a
-    // la analitica.
-    // no usamos zmq.proxy() para poder contar los mensajes explicitamente.
+    // la analitica
+    // no usamos zmq.proxy para poder contar los mensajes explicitamente
     static void hiloProxy(ZContext contexto) {
 
-        // socket xsub - aqui llegan los mensajes de los sensores
-        ZMQ.Socket frontend = contexto.createSocket(SocketType.XSUB);
-        frontend.bind("tcp://" + BROKER_IP + ":" + PUERTO_XSUB);
-        System.out.println("[BROKER] XSUB esperando sensores en tcp://" + BROKER_IP + ":" + PUERTO_XSUB);
+        // socket sub - aqui llegan los mensajes de los sensores
+        ZMQ.Socket frontend = contexto.createSocket(SocketType.SUB);
+        frontend.subscribe("".getBytes(ZMQ.CHARSET)); // suscribirse a todo
+        frontend.bind("tcp://" + BROKER_IP + ":" + PUERTO_SUB);
+        System.out.println("[BROKER] SUB esperando sensores en tcp://" + BROKER_IP + ":" + PUERTO_SUB);
 
-        // socket xpub - desde aqui salen los mensajes hacia la analitica
-        ZMQ.Socket backend = contexto.createSocket(SocketType.XPUB);
-        backend.bind("tcp://" + BROKER_IP + ":" + PUERTO_XPUB);
-        System.out.println("[BROKER] XPUB esperando suscriptores en tcp://" + BROKER_IP + ":" + PUERTO_XPUB);
+        // socket pub - desde aqui salen los mensajes hacia la analitica
+        ZMQ.Socket backend = contexto.createSocket(SocketType.PUB);
+        backend.bind("tcp://" + BROKER_IP + ":" + PUERTO_PUB);
+        System.out.println("[BROKER] PUB esperando suscriptores en tcp://" + BROKER_IP + ":" + PUERTO_PUB);
 
         System.out.println("[BROKER] Proxy iniciado manual, reenviando mensajes...");
 
-        // uso un poller para manejar ambos sockets
-        ZMQ.Poller poller = contexto.createPoller(2);
+        // uso un poller para manejar el frontend (solo recibimos de los sensores)
+        ZMQ.Poller poller = contexto.createPoller(1);
         poller.register(frontend, ZMQ.Poller.POLLIN);
-        poller.register(backend, ZMQ.Poller.POLLIN);
 
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 poller.poll(1000);
 
-                // mensajes del frontend (sensores -> broker)
+                // mensajes del frontend sensores -> broker
                 if (poller.pollin(0)) {
                     byte[] mensaje = frontend.recv(0);
                     if (mensaje != null) {
@@ -89,14 +87,6 @@ public class BrokerMultihilo {
 
                         // reenvio el mensaje
                         backend.send(mensaje, 0);
-                    }
-                }
-
-                // suscripciones del backend (analitica -> sensores)
-                if (poller.pollin(1)) {
-                    byte[] suscripcion = backend.recv(0);
-                    if (suscripcion != null) {
-                        frontend.send(suscripcion, 0);
                     }
                 }
             } catch (Exception e) {
@@ -113,14 +103,14 @@ public class BrokerMultihilo {
         System.out.println("============================================================");
         System.out.println("  BROKER MULTIHILO - PC1 (Ingesta de datos)");
         System.out.println("============================================================");
-        System.out.println("  Sensores (XSUB) -> tcp://" + BROKER_IP + ":" + PUERTO_XSUB);
-        System.out.println("  Analitica (XPUB) -> tcp://" + BROKER_IP + ":" + PUERTO_XPUB);
+        System.out.println("  Sensores (SUB) -> tcp://" + BROKER_IP + ":" + PUERTO_SUB);
+        System.out.println("  Analitica (PUB) -> tcp://" + BROKER_IP + ":" + PUERTO_PUB);
         System.out.println("============================================================");
 
-        // creo el contexto de zeromq (compartido entre hilos)
+        // creo el contexto de zeromq compartido entre hilos
         ZContext contexto = new ZContext();
 
-        // inicio el hilo de metricas (daemon para que muera con el programa)
+        // inicio el hilo de metricas daemon para que muera con el programa
         Thread t1 = new Thread(BrokerMultihilo::hiloMetricas);
         t1.setDaemon(true);
         t1.start();

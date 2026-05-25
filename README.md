@@ -1,236 +1,170 @@
-# Manual de Despliegue — Gestión Inteligente de Tráfico Urbano (Versión Java)
+# Manual de Despliegue — Gestión Inteligente de Tráfico Urbano (Versión Completa)
 
-## Descripción General
+Sistema distribuido en 3 máquinas virtuales (PC1, PC2, PC3) que monitorea, analiza y controla el tráfico urbano usando ZeroMQ (JeroMQ) como middleware de comunicación. Esta versión incluye el **diseño de doble semáforo (Carrera/Calle)**, el **Servicio de Monitoreo y Consulta con Failover**, el **Protocolo de Sincronización pos-fallo**, y **mecanismos de seguridad HMAC-SHA256**.
 
-Sistema distribuido en 3 máquinas virtuales (PC1, PC2, PC3) que monitorea, analiza y controla el tráfico urbano usando ZeroMQ (JeroMQ) como middleware de comunicación.
-
-### Arquitectura
+### Arquitectura de Red y Flujo de Mensajería
 
 ```
-PC1 (Ingesta)           PC2 (Cerebro)              PC3 (Persistencia)
-┌─────────────┐    PUB/SUB    ┌─────────────────┐   PUSH/PULL   ┌──────────────┐
-│  Sensores   │──────────────→│   Analítica     │──────────────→│ BD Principal │
-│  (PUB)      │               │   (SUB/PUSH)    │               │ (PULL)       │
-├─────────────┤               ├─────────────────┤               └──────────────┘
-│   Broker    │               │ Control Semáf.  │               
-│ (XSUB/XPUB)│               │   (PULL)        │               
-└─────────────┘               ├─────────────────┤               
-                              │  BD Réplica     │
-                              │ (PULL)          │
-                              └─────────────────┘
-```
-
----
-
-## 1. Requisitos del Sistema
-
-### Software
-- Java 11 o superior (JDK)
-- Maven 3.6 o superior
-- 3 Máquinas Virtuales con Ubuntu/Linux
-
-### Instalación de dependencias
-
-Ejecutar en **CADA una de las 3 máquinas virtuales**:
-
-```bash
-# actualizar repositorios
-sudo apt update && sudo apt upgrade -y
-
-# instalar java jdk y maven
-sudo apt install default-jdk maven -y
-
-# verificar instalacion
-java -version
-mvn -version
+   PC1 (Ingesta)                 PC2 (Cerebro)                  PC3 (Persistencia / Operador)
+┌──────────────────┐  PUB/SUB   ┌───────────────────┐  PUSH/PULL  ┌────────────────────────┐
+│  Sensores (x2)   │───────────→│     Analítica     │────────────→│   BD Principal (PULL)  │
+│  (Carrera/Calle) │            │ (Cerebro Central) │             │     (tcp:*:5570)       │
+├──────────────────┤            ├───────────────────┤             └───────────▲────────────┘
+│  Broker ZMQ      │            │ Control Semáforos │                         │
+│  (SUB/PUB)       │            │      (PULL)       │                         │ REQ/REP
+└──────────────────┘            ├───────────────────┤                         │ (Failover)
+                                │    BD Réplica     │                         │
+                                │ (tcp:*:5562/5572) │                         │
+                                └─────────▲─────────┘                         │
+                                          │                                   │
+                                          └───────────────────────────────────┴────────
+                                                Consultas REP (PC3 Caído)
+                                                
+   PC3 (Monitoreo)
+┌──────────────────┐  REQ/REP   ┌───────────────────┐
+│ MonitoreoCliente │───────────→│ Analítica (REP)   │  (Comandos forzados seguros firmados
+│      (REQ)       │  (Firma)   │   (tcp:*:5566)    │   con HMAC-SHA256)
+└──────────────────┘            └───────────────────┘
 ```
 
 ---
 
-## 2. Configuración de IPs
+## 1. Configuración de IPs
 
 Antes de ejecutar el sistema, **debes cambiar las IPs** en los archivos `.java` para que coincidan con las direcciones de tus máquinas virtuales.
 
 ### Asignación de IPs por defecto
 
-| Máquina | IP por defecto    | Rol                  |
-|---------|-------------------|----------------------|
-| PC1     | `10.43.98.198`    | Ingesta (sensores + broker) |
-| PC2     | `10.43.98.199`    | Cerebro (analítica + semáforos + réplica) |
-| PC3     | `10.43.99.183`    | Persistencia (BD principal) |
+| Máquina | IP por defecto    | Rol |
+| :--- | :--- | :--- |
+| **PC1** | `10.43.98.198` | Ingesta (sensores + broker) |
+| **PC2** | `10.43.98.199` | Cerebro (analítica + semáforos + réplica) |
+| **PC3** | `10.43.99.183` | Persistencia (BD principal) y Monitoreo |
 
 ### Archivos a modificar por PC
 
-**PC1** — Editar las variables `static` al inicio de cada archivo:
-
-```java
-// En BrokerMultihilo.java
-static String BROKER_IP = "TU_IP_PC1";
-
-// En Sensores.java
-static String BROKER_IP = "TU_IP_PC1";
-```
-
-**PC2** — Editar:
-
-```java
-// En Analitica.java
-static String BROKER_IP = "IP_DEL_PC1";
-static String ANALITICA_IP = "TU_IP_PC2";
-static String BD_PRINCIPAL_IP = "IP_DEL_PC3";
-
-// En ControlSemaforos.java
-static String ANALITICA_IP = "TU_IP_PC2";
-
-// En BdReplica.java
-static String REPLICA_IP = "TU_IP_PC2";
-```
-
-**PC3** — Editar:
-
-```java
-// En BdPrincipal.java
-static String BD_IP = "TU_IP_PC3";
-```
+*   **PC1**: Editar las variables `static String BROKER_IP` en:
+    *   `BrokerMultihilo.java`
+    *   `Sensores.java`
+*   **PC2**: Editar en:
+    *   `Analitica.java` (variables `BROKER_IP`, `ANALITICA_IP`, `BD_PRINCIPAL_IP`)
+    *   `ControlSemaforos.java` (variable `ANALITICA_IP`)
+    *   `BdReplica.java` (variable `REPLICA_IP`)
+*   **PC3**: Editar en:
+    *   `BdPrincipal.java` (variable `BD_IP`)
+    *   `MonitoreoConsulta.java` (variables `ANALITICA_IP`, `BD_PRINCIPAL_IP`)
 
 ---
 
-## 3. Transferencia de Archivos
+## 2. Compilación
 
-Copiar las carpetas a cada máquina virtual:
-
-```bash
-# PC1:
-scp -r pc1/ usuario@IP_PC1:~/trafico/
-
-# PC2:
-scp -r pc2/ usuario@IP_PC2:~/trafico/
-
-# PC3:
-scp -r pc3/ usuario@IP_PC3:~/trafico/
-```
-
----
-
-## 4. Compilación
-
-En **cada máquina virtual**, abre una terminal para compilar los módulos de Java con Maven:
+En **cada máquina virtual**, abre una terminal en la carpeta correspondiente para compilar los módulos de Java con Maven:
 
 ```bash
-# Ejemplo si estás en PC1:
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
+# Ejemplo en PC1:
+cd ~/trafico/java/pc1
+mvn compile
+
+# Ejemplo en PC2:
+cd ~/trafico/java/pc2
+mvn compile
+
+# Ejemplo en PC3:
+cd ~/trafico/java/pc3
 mvn compile
 ```
 
-Maven descargará automáticamente las dependencias (JeroMQ, org.json, sqlite-jdbc). Haz esto en la carpeta `pc2` y `pc3` en sus respectivas máquinas.
-
 ---
 
-## 5. Orden Exacto de Ejecución
+## 3. Orden de Ejecución de los Servicios
 
-> **IMPORTANTE**: Respetar el orden exacto. Los servicios que reciben datos (PULL, SUB) deben iniciarse ANTES que los que envían datos (PUB, PUSH).
+> **IMPORTANTE**: Respetar el orden exacto de arranque.
 
 ### Paso 1: Iniciar PC3 (Persistencia)
-
+Inicia el motor de persistencia principal:
 ```bash
 # Terminal de PC3:
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc3
+cd ~/trafico/java/pc3
 mvn exec:java -Dexec.mainClass="BdPrincipal"
 ```
 
-### Paso 2: Iniciar PC2 (Cerebro)
-
+### Paso 2: Iniciar PC2 (Cerebro y Control)
+Abre 3 terminales en el PC2 y arranca los servicios en este orden:
 ```bash
-# Terminal 1 de PC2:
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
+# Terminal 1 (BD Réplica):
 mvn exec:java -Dexec.mainClass="BdReplica"
 
-# Terminal 2 de PC2 (abrir nueva terminal):
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
+# Terminal 2 (Controlador de Semáforos):
 mvn exec:java -Dexec.mainClass="ControlSemaforos"
 
-# Terminal 3 de PC2 (abrir nueva terminal):
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc2
+# Terminal 3 (Servicio de Analítica):
 mvn exec:java -Dexec.mainClass="Analitica"
 ```
 
 ### Paso 3: Iniciar PC1 (Ingesta)
-
+Abre 2 terminales en el PC1:
 ```bash
-# Terminal 1 de PC1:
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
+# Terminal 1 (Broker Multihilo):
 mvn exec:java -Dexec.mainClass="BrokerMultihilo"
 
-# Terminal 2 de PC1 (abrir nueva terminal):
-cd ~/Desktop/Distibuidos-Proyecto-1-main/java/pc1
+# Terminal 2 (Simulación de Sensores):
+# Para ejecutar en modo normal:
 mvn exec:java -Dexec.mainClass="Sensores"
 ```
 
----
-
-## 6. Verificación de Funcionamiento
-
-### 6.1 Flujo Operativo y Detección
-1. Los sensores (PC1) publican eventos generados cada 10 segundos con valores aleatorios ajustados orgánicamente para simular una red urbana (volumen vehícular 0-30, velocidad 0-60km/h).
-2. La analítica (PC2) enruta y evalúa estas métricas en tiempo real e imprime transiciones dinámicas entre los estados: NORMAL, INTERMEDIO o CONGESTION.
-3. El control de semáforos (PC2) ejecuta el ciclo automático base (15s); si ocurre una emergencia o alto volumen vehicular, obedece comandos de la analítica como extender el verde a 30s.
-4. Las BDs Principal y Réplica (PC2 y PC3) persisten ininterrumpidamente cada evento procesado para fines de monitoreo histórico.
-
-### 6.2 Prueba de enmascaramiento de fallos
-1. Con el sistema funcionando, **detener** `BdPrincipal` en PC3 (Ctrl+C).
-2. Verificar que la analítica (PC2) imprime el mensaje de reconexión manual / error.
-3. Los datos deben seguir guardándose ininterrumpidamente en la BD réplica (PC2).
-
----
-
-## 7. Detener el Sistema
-
-Para detener cada servicio, presionar **Ctrl+C** en la terminal correspondiente.
-
-Orden de detención recomendado (inverso al de inicio):
-1. Detener sensores y broker (PC1)
-2. Detener analítica, semáforos y réplica (PC2)
-3. Detener BD principal (PC3)
-
----
-
-## 8. Dependencias (Maven)
-
-| Librería | Versión | Uso |
-|----------|---------|-----|
-| JeroMQ | 0.6.0 | Implementación pura Java de ZeroMQ |
-| org.json | 20231013 | Serialización/deserialización JSON |
-| sqlite-jdbc | 3.44.1.0 | Driver JDBC para SQLite (solo PC2 y PC3) |
-
----
-
-## 9. Estructura de Archivos
-
-```
-java/
-├── README.md
-├── diagramas/
-│   ├── diagrama_despliegue.puml
-│   ├── diagrama_componentes.puml
-│   ├── diagrama_clases.puml
-│   └── diagrama_secuencia.puml
-├── pc1/
-│   ├── pom.xml
-│   └── src/main/java/
-│       ├── BrokerMultihilo.java
-│       └── Sensores.java
-├── pc2/
-│   ├── pom.xml
-│   └── src/main/java/
-│       ├── Analitica.java
-│       ├── ControlSemaforos.java
-│       └── BdReplica.java
-└── pc3/
-    ├── pom.xml
-    └── src/main/java/
-        └── BdPrincipal.java
+### Paso 4: Iniciar Monitoreo y Consulta (PC3)
+Arranca la consola interactiva del operador:
+```bash
+# Abrir otra terminal en PC3:
+mvn exec:java -Dexec.mainClass="MonitoreoConsulta"
 ```
 
-## Autores
+---
 
-Miguel Angel Acuña, Juan David Acuña, y Samuel Felipe Manrique — Sistemas Distribuidos 2026-10
+## 4. Simulación de Fallos y Pruebas Especiales
+
+### 4.1. Fallo-Parada de BD y Conmutación Transparente (Failover)
+1.  Con el sistema corriendo, haz consultas históricas u obtén datos en tiempo real desde `MonitoreoConsulta`. Verás que el origen de datos es `BD_PRINCIPAL (PC3)`.
+2.  Detén la base de datos principal en el **PC3** presionando `Ctrl+C` en su terminal.
+3.  Vuelve a realizar una consulta en `MonitoreoConsulta`. Notarás que el sistema continúa operando de forma ininterrumpida imprimiendo:
+    `[MONITOREO-FALLOVER] PC3 no responde. Conectando con BD Replica en PC2 de forma transparente...`
+    El origen cambiará automáticamente a `BD_REPLICA (PC2)`.
+
+### 4.2. Recuperación y Protocolo de Sincronización
+1.  Con `BdPrincipal` caída, permite que los sensores sigan enviando datos. El servicio de Analítica (PC2) guardará estos registros exclusivamente en `replica.db`.
+2.  Vuelve a arrancar la `BdPrincipal` en el **PC3**.
+3.  A los pocos segundos, el hilo de latidos de `Analitica.java` detectará que PC3 responde, consultará la diferencia de registros entre bases de datos y sincronizará en ráfaga todo el historial faltante. Verás en la consola:
+    `[DETECCION-FALLAS] PC3 (BD Principal) ha RESUCITADO.`
+    `[SINCRONIZACION] Se encontraron X registros nuevos en la replica para sincronizar.`
+    `[SINCRONIZACION] Sincronización exitosa. Base de datos principal actualizada.`
+
+### 4.3. Simulación de Fallos en Sensores (Inyección de Fallas)
+Puedes arrancar la simulación en el **PC1** pasando parámetros especiales de Maven para simular diferentes fallos del sistema:
+
+*   **Simular Ruptura Física** (desactiva aleatoriamente el 20% de los sensores):
+    ```bash
+    mvn exec:java -Dexec.mainClass="Sensores" -Dexec.args="-ruptura"
+    ```
+*   **Simular Omisión de Canal** (pierde un 15% de los paquetes en la red):
+    ```bash
+    mvn exec:java -Dexec.mainClass="Sensores" -Dexec.args="-omision 15"
+    ```
+*   **Simular Fallo de Temporización** (añade 2000 ms de latencia artificial):
+    ```bash
+    mvn exec:java -Dexec.mainClass="Sensores" -Dexec.args="-temporizacion 2000"
+    ```
+*   **Combinado**:
+    ```bash
+    mvn exec:java -Dexec.mainClass="Sensores" -Dexec.args="-ruptura -omision 10 -temporizacion 1000"
+    ```
+
+### 4.4. Prueba de Criptografía y Seguridad (Cubo de McCumber)
+El sistema protege los comandos críticos (como el paso de ambulancias) contra inyecciones de red mediante **HMAC-SHA256**:
+1.  Cuando se activa la opción 3 (Ola Verde) en `MonitoreoConsulta`, el cliente genera un timestamp y computa una firma criptográfica con la clave simétrica precompartida.
+2.  La Analítica valida la integridad. Si intentas inyectar un comando falso desde un script externo sin la firma o con datos modificados, la Analítica imprimirá:
+    `[ANALITICA-SEGURIDAD] Alerta: Firma no valida en comando` y rechazará el cambio de luz.
+
+### 4.5. Sincronización de Doble Semáforo
+Visualiza en la terminal de `ControlSemaforos` (PC2) cómo se gestionan de forma coordinada los semáforos de **Carrera** y **Calle** por intersección:
+*   Ciclo alternativo normal de 15s.
+*   En caso de congestión en Carrera, el verde de Carrera se extenderá automáticamente a 30s mientras Calle espera en rojo, equilibrando dinámicamente el tránsito.

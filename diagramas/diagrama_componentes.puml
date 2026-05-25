@@ -42,7 +42,7 @@ node "PC3 - Máquina 3" <<Device>> {
 
 ' Conexiones patrón ZMQ
 Sensores --> Broker : PUB/SUB
-Broker --> Analitica : XSUB/XPUB
+Broker --> Analitica : PUB/SUB
 
 Analitica --> Semaforos : PUSH/PULL
 Analitica --> BdPrincipal : PUSH/PULL

@@ -1,14 +1,12 @@
-// analitica.java - servicio de analitica de trafico - pc2 (cerebro)
+// analitica.java - servicio de analitica de trafico - pc2
 //
-// este es el componente principal de procesamiento. hace lo siguiente:
-//   1. se suscribe al broker y recibe los eventos de los sensores (sub)
-//   2. evalua las reglas de trafico con las variables d, vp, q
-//   3. envia los datos procesados a la bd principal (push) y a la replica (push)
-//   4. envia comandos al control de semaforos (push)
-//   5. atiende comandos del monitoreo como priorizacion de ambulancias (rep)
-//
-// si la bd principal (pc3) no responde, se activa el enmascaramiento de fallos
-// y los datos solo se guardan en la bd replica (pc2).
+// este es el componente principal de procesamiento hace lo siguiente:
+//   1. se suscribe al broker y recibe los eventos de los sensores sub
+//   2. evalua las reglas de trafico con las variables d, vp, q correlacion de eventos
+//   3. envia los datos procesados a la bd principal push y a la replica push
+//   4. envia comandos al control de semaforos push
+//   5. atiende comandos del monitoreo como priorizacion de ambulancias rep con hmac-sha256
+//   6. realiza la sincronizacion automatica de bds tras la recuperacion del pc3
 //
 // autores: miguel angel acuna, juan david acuna, y samuel felipe manrique - sistemas distribuidos 2026-10
 
@@ -16,7 +14,11 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -25,19 +27,21 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class Analitica {
 
-    // ============================================================
     // configuracion de red - cambiar segun las ips de cada pc
     // ============================================================
-    static String BROKER_IP = "10.43.98.198";         // pc1 - donde esta el broker
-    static String ANALITICA_IP = "10.43.98.199";      // pc2 - esta maquina
-    static String BD_PRINCIPAL_IP = "10.43.99.183";   // pc3 - bd principal
+    static String BROKER_IP = "10.43.98.198";         // pc1
+    static String ANALITICA_IP = "10.43.98.199";      // pc2
+    static String BD_PRINCIPAL_IP = "10.43.99.183";   // pc3
 
-    // guardo el estado de cada interseccion aqui
-    // es un hashmap: {"INT-A1": {"Q": 0, "Vp": 50, "D": 0, "estado": "NORMAL"}, ...}
+    // clave secreta compartida para validar firmas hmac de comandos de monitoreo
+    static final String SECRETO = "clave_secreta_transito_2026";
+
+    // guardo el estado de cada interseccion y via aqui
+    // clave: "int-c5_carrera" o "int-c5_calle"
     static HashMap<String, HashMap<String, Object>> datosIntersecciones = new HashMap<>();
 
     // esta variable me dice si el pc3 esta funcionando o no
-    static boolean pc3EstaVivo = true;
+    static volatile boolean pc3EstaVivo = true;
 
     // lock para que los hilos no se pisen al modificar datosIntersecciones
     static ReentrantLock lock = new ReentrantLock();
@@ -48,47 +52,61 @@ public class Analitica {
                 .format(Instant.now());
     }
 
-    // evalua el estado del trafico usando las 3 variables:
-    //   q  = longitud de cola (vehiculos en espera) - viene de la camara
-    //   vp = velocidad promedio (km/h) - viene de camara y gps
-    //   d  = densidad de trafico (veh/km) - viene del gps
+    // calcular firma hmac-sha256 para validacion de mensajes
+    static String calcularHMAC(String datos, String clave) {
+        try {
+            SecretKeySpec secretKey = new SecretKeySpec(clave.getBytes(), "HmacSHA256");
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(secretKey);
+            byte[] bytes = mac.doFinal(datos.getBytes());
+            return Base64.getEncoder().encodeToString(bytes);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    // correlacion de eventos
+    // evalua el estado del trafico usando las 3 variables
+    //   q  = longitud de cola
+    //   vp = velocidad promedio
+    //   d  = densidad de trafico
     static String evaluarTrafico(int Q, double Vp, int D) {
-        // En la Entrega 1 solo evaluamos y gestionamos activamente el Caso 1 (Tráfico Normal)
+        // regla normal: q < 5 and vp > 35 and d < 20
         if (Q < 5 && Vp > 35 && D < 20) {
             return "NORMAL";
         }
+        // regla congestion: q >= 12 or vp < 20 or d >= 30
+        if (Q >= 12 || Vp < 20 || D >= 30) {
+            return "CONGESTION";
+        }
+        // en cualquier otro caso
         return "INTERMEDIO";
     }
 
-
-    // crea un comando para enviar al servicio de semaforos.
-    // devuelve null si el estado es INTERMEDIO.
-    static JSONObject crearComandoSemaforo(String interseccion, String estado) {
-        if (estado.equals("INTERMEDIO")) return null;
-
-        JSONObject cmd = new JSONObject();
-        cmd.put("interseccion", interseccion);
-        cmd.put("timestamp", timestampAhora());
-
-        if (estado.equals("NORMAL")) {
-            cmd.put("accion", "CICLO_NORMAL");
-            cmd.put("duracion_verde", 15);
-            cmd.put("motivo", "Trafico normal");
+    // obtiene la estrategia de control combinando los estados de carrera y calle
+    static String obtenerEstrategia(String estadoCarrera, String estadoCalle) {
+        if (estadoCarrera.equals("CONGESTION") && !estadoCalle.equals("CONGESTION")) {
+            return "CONGESTION_CARRERA";
+        } else if (estadoCalle.equals("CONGESTION") && !estadoCarrera.equals("CONGESTION")) {
+            return "CONGESTION_CALLE";
         }
-        
-        return cmd;
+        return "CICLO_NORMAL"; // en caso de equilibrio o que ambos esten en el mismo estado
     }
 
-    // este hilo se suscribe al broker y recibe los eventos de los sensores.
-    // por cada evento:
-    //   1. lo deserializo (unmarshalling del json)
-    //   2. actualizo las variables q, vp, d de la interseccion
-    //   3. evaluo las reglas de trafico
-    //   4. envio los datos a las dos bds
-    //   5. si cambio el estado, envio comando al semaforo
+    static void inicializarVia(String claveVia) {
+        if (!datosIntersecciones.containsKey(claveVia)) {
+            HashMap<String, Object> nuevo = new HashMap<>();
+            nuevo.put("Q", 0);
+            nuevo.put("Vp", 50.0);
+            nuevo.put("D", 0);
+            nuevo.put("estado", "NORMAL");
+            datosIntersecciones.put(claveVia, nuevo);
+        }
+    }
+
+    // este hilo se suscribe al broker y recibe los eventos de los sensores
     static void hiloRecibirSensores(ZContext contexto) {
 
-        // me suscribo al broker para recibir los eventos
         ZMQ.Socket socketSub = contexto.createSocket(SocketType.SUB);
         socketSub.connect("tcp://" + BROKER_IP + ":5556");
         socketSub.subscribe("camara");
@@ -97,8 +115,7 @@ public class Analitica {
 
         // socket push para enviar datos a la bd principal (pc3)
         ZMQ.Socket pushPrincipal = contexto.createSocket(SocketType.PUSH);
-        pushPrincipal.setSendTimeOut(3000);  // timeout explicito de envio
-        pushPrincipal.setReceiveTimeOut(3000);
+        pushPrincipal.setSendTimeOut(2000);
         pushPrincipal.setLinger(0);
         pushPrincipal.connect("tcp://" + BD_PRINCIPAL_IP + ":5570");
 
@@ -110,180 +127,362 @@ public class Analitica {
         ZMQ.Socket pushSemaforos = contexto.createSocket(SocketType.PUSH);
         pushSemaforos.bind("tcp://" + ANALITICA_IP + ":5563");
 
-        // uso un poller para no quedarme bloqueado esperando mensajes
         ZMQ.Poller poller = contexto.createPoller(1);
         poller.register(socketSub, ZMQ.Poller.POLLIN);
 
         System.out.println("[ANALITICA] Escuchando eventos de sensores...");
         System.out.println("[ANALITICA] Conectado al broker en tcp://" + BROKER_IP + ":5556");
 
-        while (true) {
-            // espero hasta 2 segundos a que llegue un mensaje
+        while (!Thread.currentThread().isInterrupted()) {
             poller.poll(2000);
 
-            if (!poller.pollin(0)) {
-                // no llego nada, sigo esperando
-                continue;
-            }
+            if (!poller.pollin(0)) continue;
 
-            // recibo el mensaje del broker
             String mensaje = socketSub.recvStr();
             if (mensaje == null) continue;
 
-            // separo el topico del json: "camara {json}"
             String[] partes = mensaje.split(" ", 2);
             if (partes.length != 2) continue;
 
             String topico = partes[0];
             String jsonStr = partes[1];
 
-            // unmarshalling: convierto el json de vuelta a objeto
             JSONObject evento;
             try {
                 evento = new JSONObject(jsonStr);
             } catch (Exception e) {
-                System.out.println("[ANALITICA] Error leyendo JSON, lo ignoro");
                 continue;
             }
 
             String interseccion = evento.optString("interseccion", "DESCONOCIDA");
+            String via = evento.optString("via", "CARRERA"); // CARRERA o CALLE
 
-            // actualizo los datos de la interseccion
-            int Q; double Vp; int D; String estadoNuevo; String estadoAnterior;
+            String claveEstaVia = interseccion + "_" + via;
+            String claveOtraVia = interseccion + "_" + (via.equals("CARRERA") ? "CALLE" : "CARRERA");
+
+            int Q; double Vp; int D;
+            String estadoNuevoVia;
+            String estrategiaNueva;
+            String estrategiaAnterior;
 
             lock.lock();
             try {
-                if (!datosIntersecciones.containsKey(interseccion)) {
-                    HashMap<String, Object> nuevo = new HashMap<>();
-                    nuevo.put("Q", 0);
-                    nuevo.put("Vp", 50.0);
-                    nuevo.put("D", 0);
-                    nuevo.put("estado", "NORMAL");
-                    datosIntersecciones.put(interseccion, nuevo);
-                }
+                inicializarVia(claveEstaVia);
+                inicializarVia(claveOtraVia);
 
-                HashMap<String, Object> datos = datosIntersecciones.get(interseccion);
+                HashMap<String, Object> datosEstaVia = datosIntersecciones.get(claveEstaVia);
+                HashMap<String, Object> datosOtraVia = datosIntersecciones.get(claveOtraVia);
+
+                // obtener estrategia anterior antes de actualizar
+                String estadoAntCarrera = via.equals("CARRERA") ? (String) datosEstaVia.get("estado") : (String) datosOtraVia.get("estado");
+                String estadoAntCalle = via.equals("CALLE") ? (String) datosEstaVia.get("estado") : (String) datosOtraVia.get("estado");
+                estrategiaAnterior = obtenerEstrategia(estadoAntCarrera, estadoAntCalle);
 
                 // actualizo las variables segun el tipo de sensor
                 if (topico.equals("camara")) {
-                    datos.put("Q", evento.optInt("volumen", 0));
-                    datos.put("Vp", evento.optDouble("velocidad_promedio", 50));
+                    datosEstaVia.put("Q", evento.optInt("volumen", 0));
+                    datosEstaVia.put("Vp", evento.optDouble("velocidad_promedio", 50));
                 } else if (topico.equals("gps")) {
-                    datos.put("D", evento.optInt("densidad", 0));
+                    datosEstaVia.put("D", evento.optInt("densidad", 0));
                     double vpGps = evento.optDouble("velocidad_promedio", -1);
                     if (vpGps >= 0) {
-                        datos.put("Vp", ((double) datos.get("Vp") + vpGps) / 2);
+                        datosEstaVia.put("Vp", ((double) datosEstaVia.get("Vp") + vpGps) / 2.0);
                     }
                 }
 
-                // evaluo las reglas de trafico
-                Q = (int) datos.get("Q");
-                Vp = (double) datos.get("Vp");
-                D = (int) datos.get("D");
-                estadoNuevo = evaluarTrafico(Q, Vp, D);
-                estadoAnterior = (String) datos.get("estado");
-                datos.put("estado", estadoNuevo);
+                // evaluo las reglas de trafico para ESTA via
+                Q = (int) datosEstaVia.get("Q");
+                Vp = (double) datosEstaVia.get("Vp");
+                D = (int) datosEstaVia.get("D");
+                estadoNuevoVia = evaluarTrafico(Q, Vp, D);
+                datosEstaVia.put("estado", estadoNuevoVia);
+
+                // obtener estrategia nueva
+                String estadoNueCarrera = via.equals("CARRERA") ? estadoNuevoVia : (String) datosOtraVia.get("estado");
+                String estadoNueCalle = via.equals("CALLE") ? estadoNuevoVia : (String) datosOtraVia.get("estado");
+                estrategiaNueva = obtenerEstrategia(estadoNueCarrera, estadoNueCalle);
+
             } finally {
                 lock.unlock();
             }
 
-            // imprimo el resultado por pantalla
-            System.out.println("\n[ANALITICA] Sensor: " + topico + " | Interseccion: " + interseccion);
-            System.out.printf("[ANALITICA] Q=%d | Vp=%.1f | D=%d%n", Q, Vp, D);
-            System.out.println("[ANALITICA] Estado: " + estadoNuevo);
+            // Impresión de logs de correlación
+            System.out.printf("[ANALITICA] Evento %s en %s (%s) | Q=%d, Vp=%.1f, D=%d -> Estado Via: %s%n",
+                    topico, interseccion, via, Q, Vp, D, estadoNuevoVia);
 
-            if (!estadoNuevo.equals(estadoAnterior)) {
-                System.out.println("[ANALITICA] ** CAMBIO: " + estadoAnterior + " -> " + estadoNuevo + " **");
+            // el envio de comandos ocurre siempre que cambie
+            // la estrategia del semaforo independientemente del estado de la bd
+            if (!estrategiaNueva.equals(estrategiaAnterior)) {
+                System.out.println("[ANALITICA] ** ESTRATEGIA CAMBIO: " + estrategiaAnterior + " -> " + estrategiaNueva + " **");
+
+                JSONObject comando = new JSONObject();
+                comando.put("interseccion", interseccion);
+                comando.put("accion", estrategiaNueva);
+                comando.put("duracion_verde", estrategiaNueva.contains("CONGESTION") ? 30 : 15);
+                comando.put("motivo", "Actualizacion por flujo de trafico (" + estrategiaNueva + ")");
+
+                try {
+                    pushSemaforos.send(comando.toString());
+                    System.out.println("[ANALITICA] -> Comando semaforo enviado: " + estrategiaNueva);
+                } catch (Exception e) {
+                    System.out.println("[ANALITICA] Error enviando comando a semaforos: " + e.getMessage());
+                }
             }
 
-            // preparo el registro para guardar en la bd
+            // preparo el registro para guardar en las bases de datos
             JSONObject registro = new JSONObject();
             registro.put("interseccion", interseccion);
             registro.put("tipo_sensor", topico);
             registro.put("datos_sensor", evento);
-            registro.put("estado_trafico", estadoNuevo);
+            registro.put("estado_trafico", estadoNuevoVia);
             registro.put("Q", Q);
             registro.put("Vp", Math.round(Vp * 10.0) / 10.0);
             registro.put("D", D);
+            registro.put("via", via);
             registro.put("timestamp_procesado", timestampAhora());
 
             // envio a la bd replica (siempre se envia)
             try {
                 pushReplica.send(registro.toString());
-                System.out.println("[ANALITICA] -> Enviado a BD replica (PC2)");
             } catch (Exception e) {
-                System.out.println("[ANALITICA] Error enviando a replica: " + e.getMessage());
+                // ignorar
             }
 
-            // envio a la bd principal (pc3) - aqui puede fallar
-            boolean enviado = pushPrincipal.send(registro.toString(), ZMQ.NOBLOCK);
-            if (enviado) {
-                if (!pc3EstaVivo) {
-                    System.out.println("[ANALITICA] PC3 se recupero!");
-                    pc3EstaVivo = true;
-                } else {
-                    System.out.println("[ANALITICA] -> Enviado a BD principal (PC3)");
+            // enmascaramiento de fallos: solo intentamos push si pc3estavivo es true
+            if (pc3EstaVivo) {
+                boolean enviado = pushPrincipal.send(registro.toString(), ZMQ.NOBLOCK);
+                if (!enviado) {
+                    System.out.println("[ANALITICA] !!! Fallo al enviar PUSH a PC3 (Buffer lleno) !!!");
                 }
-            } else {
-                // ================================================
-                // enmascaramiento de fallos:
-                // si no responde la bd principal, guardo en la replica
-                // el sistema no se detiene, sigue funcionando
-                // ================================================
-                if (pc3EstaVivo) {
-                    System.out.println("[ANALITICA] !!! FALLO: PC3 no responde !!!");
-                    System.out.println("[ANALITICA] !!! ENMASCARAMIENTO DE FALLOS ACTIVADO !!!");
-                    System.out.println("[ANALITICA] !!! Datos guardados SOLO en BD replica !!!");
-                    pc3EstaVivo = false;
-                } else {
-                    System.out.println("[ANALITICA] PC3 sigue caido, datos en replica");
-                }
-                        // verifico si hubo un cambio de estado
-                    if (!estadoNuevo.equals(estadoAnterior)) {
-                        datosIntersecciones.get(interseccion).put("estado", estadoNuevo);
-
-                        // envio un comando al equipo de semaforos local en pc2
-                        JSONObject comando = crearComandoSemaforo(interseccion, estadoNuevo);
-                        if (comando != null) {
-                            try {
-                                pushSemaforos.send(comando.toString());
-                                System.out.println("[ANALITICA] -> Comando semaforo enviado: " + comando.getString("accion"));
-                            } catch (Exception e) {
-                                // no se pudo enviar, continuo
-                            }
-                        }
-                    }
             }
         }
+
+        pushPrincipal.close();
+        pushReplica.close();
+        pushSemaforos.close();
+        socketSub.close();
     }
 
+    // hilo que expone el puerto de monitoreo rep y revisa la reconexion del pc3
+    static void hiloMonitoreoYSincronizacion(ZContext contexto) {
+        ZMQ.Socket socketRep = contexto.createSocket(SocketType.REP);
+        socketRep.bind("tcp://" + ANALITICA_IP + ":5566");
+
+        ZMQ.Poller poller = contexto.createPoller(1);
+        poller.register(socketRep, ZMQ.Poller.POLLIN);
+
+        long ultimoHeartbeat = System.currentTimeMillis();
+
+        System.out.println("[ANALITICA] Atendiendo Monitoreo en tcp://" + ANALITICA_IP + ":5566");
+
+        while (!Thread.currentThread().isInterrupted()) {
+            poller.poll(500);
+
+            if (poller.pollin(0)) {
+                String msg = socketRep.recvStr();
+                if (msg != null) {
+                    JSONObject respuesta = new JSONObject();
+                    try {
+                        JSONObject peticion = new JSONObject(msg);
+                        String interseccion = peticion.optString("interseccion", "");
+                        String via = peticion.optString("via", "");
+                        String accion = peticion.optString("accion", ""); // EMERGENCIA_CARRERA, EMERGENCIA_CALLE, CICLO_NORMAL
+                        int duracionVerde = peticion.optInt("duracion_verde", 45);
+                        String timestamp = peticion.optString("timestamp", "");
+                        String firma = peticion.optString("firma", "");
+
+                        // validacion criptografica hmac-sha256 mccumber integridad y autenticidad
+                        String datosFirma = interseccion + ":" + via + ":" + accion + ":" + timestamp;
+                        String firmaEsperada = calcularHMAC(datosFirma, SECRETO);
+
+                        if (!firmaEsperada.equals(firma)) {
+                            respuesta.put("resultado", "ERROR");
+                            respuesta.put("mensaje", "[SEGURIDAD] Firma digital HMAC no valida. Rechazado.");
+                            System.out.println("[ANALITICA-SEGURIDAD] Alerta: Firma no valida en comando de " + interseccion);
+                        } else {
+                            System.out.println("[ANALITICA-MONITOREO] Comando manual validado exitosamente para " + interseccion);
+
+                            // enviar comando al controlador de semaforos mediante un socket push local
+                            ZMQ.Socket pushSemaforoLocal = contexto.createSocket(SocketType.PUSH);
+                            pushSemaforoLocal.connect("tcp://" + ANALITICA_IP + ":5563");
+
+                            JSONObject cmdSemaforo = new JSONObject();
+                            cmdSemaforo.put("interseccion", interseccion);
+                            cmdSemaforo.put("accion", accion);
+                            cmdSemaforo.put("duracion_verde", duracionVerde);
+                            cmdSemaforo.put("motivo", "EMERGENCIA MANUAL POR OPERADOR");
+                            
+                            pushSemaforoLocal.send(cmdSemaforo.toString());
+                            pushSemaforoLocal.close();
+
+                            // registrar la accion de control en las bases de datos para persistencia e historico
+                            JSONObject controlLog = new JSONObject();
+                            controlLog.put("interseccion", interseccion);
+                            controlLog.put("via", via);
+                            controlLog.put("tipo_accion", accion);
+                            controlLog.put("detalles", "Operador activo prioridad por " + duracionVerde + " segundos.");
+                            controlLog.put("timestamp", timestampAhora());
+
+                            // guardar en replica
+                            try {
+                                ZMQ.Socket pushReplicaLocal = contexto.createSocket(SocketType.PUSH);
+                                pushReplicaLocal.connect("tcp://" + ANALITICA_IP + ":5562");
+                                JSONObject msgReplica = new JSONObject();
+                                msgReplica.put("accion", "GUARDAR_ACCION_CONTROL");
+                                msgReplica.put("control", controlLog);
+                                pushReplicaLocal.send(msgReplica.toString());
+                                pushReplicaLocal.close();
+                            } catch (Exception e) {
+                                // ignorar
+                            }
+
+                            // guardar en bd principal si esta activa
+                            if (pc3EstaVivo) {
+                                try (ZMQ.Socket reqPrincipal = contexto.createSocket(SocketType.REQ)) {
+                                    reqPrincipal.connect("tcp://" + BD_PRINCIPAL_IP + ":5571");
+                                    reqPrincipal.setSendTimeOut(1500);
+                                    reqPrincipal.setReceiveTimeOut(1500);
+
+                                    JSONObject msgPrincipal = new JSONObject();
+                                    msgPrincipal.put("accion", "GUARDAR_ACCION_CONTROL");
+                                    msgPrincipal.put("control", controlLog);
+                                    reqPrincipal.send(msgPrincipal.toString());
+                                    reqPrincipal.recvStr();
+                                } catch (Exception e) {
+                                    System.out.println("[ANALITICA] Error guardando accion de control en PC3: " + e.getMessage());
+                                }
+                            }
+
+                            respuesta.put("resultado", "OK");
+                            respuesta.put("mensaje", "Accion ejecutada en semaforos de " + interseccion);
+                        }
+                    } catch (Exception e) {
+                        respuesta.put("resultado", "ERROR");
+                        respuesta.put("mensaje", e.getMessage());
+                    }
+                    socketRep.send(respuesta.toString());
+                }
+            }
+
+            // heartbeat y sincronizacion: chequeo de salud cada 5 segundos
+            long ahora = System.currentTimeMillis();
+            if (ahora - ultimoHeartbeat >= 5000) {
+                ultimoHeartbeat = ahora;
+
+                // ping activo a la bd principal mediante req
+                ZMQ.Socket reqPing = contexto.createSocket(SocketType.REQ);
+                reqPing.connect("tcp://" + BD_PRINCIPAL_IP + ":5571");
+                reqPing.setSendTimeOut(1500);
+                reqPing.setReceiveTimeOut(1500);
+                reqPing.setLinger(0);
+
+                JSONObject ping = new JSONObject();
+                ping.put("accion", "ULTIMO_REGISTRO");
+
+                boolean enviado = reqPing.send(ping.toString());
+                String respuestaPing = null;
+                if (enviado) {
+                    respuestaPing = reqPing.recvStr();
+                }
+                reqPing.close();
+
+                if (respuestaPing != null) {
+                    // si el pc3 responde y estaba marcado como muerto:
+                    if (!pc3EstaVivo) {
+                        System.out.println("\n[DETECCION-FALLAS] PC3 (BD Principal) ha RESUCITADO. Iniciando protocolo de sincronizacion...");
+
+                        try {
+                            JSONObject respJson = new JSONObject(respuestaPing);
+                            String ultimoTimestampPrincipal = respJson.optString("ultimo_timestamp", "1970-01-01T00:00:00Z");
+
+                            // 1. consultar a la replica pc2 todos los eventos posteriores a esa fecha
+                            ZMQ.Socket reqReplicaSync = contexto.createSocket(SocketType.REQ);
+                            reqReplicaSync.connect("tcp://" + ANALITICA_IP + ":5572");
+                            reqReplicaSync.setSendTimeOut(3000);
+                            reqReplicaSync.setReceiveTimeOut(3000);
+
+                            JSONObject syncReq = new JSONObject();
+                            syncReq.put("accion", "OBTENER_DESDE");
+                            syncReq.put("ultimo_timestamp", ultimoTimestampPrincipal);
+
+                            reqReplicaSync.send(syncReq.toString());
+                            String respSyncStr = reqReplicaSync.recvStr();
+                            reqReplicaSync.close();
+
+                            if (respSyncStr != null) {
+                                JSONObject syncRes = new JSONObject(respSyncStr);
+                                JSONArray eventosFaltantes = syncRes.getJSONArray("eventos");
+
+                                int cantidad = eventosFaltantes.length();
+                                System.out.println("[SINCRONIZACION] Sincronizando " + cantidad + " registros acumulados en replica...");
+
+                                if (cantidad > 0) {
+                                    // 2. insertarlos en la bd principal pc3 uno a uno usando el socket req
+                                    ZMQ.Socket reqPrincipalSync = contexto.createSocket(SocketType.REQ);
+                                    reqPrincipalSync.connect("tcp://" + BD_PRINCIPAL_IP + ":5571");
+                                    reqPrincipalSync.setSendTimeOut(2000);
+                                    reqPrincipalSync.setReceiveTimeOut(2000);
+
+                                    for (int i = 0; i < cantidad; i++) {
+                                        JSONObject ev = eventosFaltantes.getJSONObject(i);
+                                        JSONObject syncMsg = new JSONObject();
+                                        syncMsg.put("accion", "INSERTAR_REGISTRO");
+                                        syncMsg.put("registro", ev);
+
+                                        reqPrincipalSync.send(syncMsg.toString());
+                                        reqPrincipalSync.recvStr(); // esperar respuesta
+                                    }
+                                    reqPrincipalSync.close();
+                                }
+                                System.out.println("[SINCRONIZACION] Sincronización finalizada con éxito. PC3 al día.");
+                            }
+                        } catch (Exception e) {
+                            System.out.println("[SINCRONIZACION] Error en sincronización: " + e.getMessage());
+                        }
+                        pc3EstaVivo = true;
+                    }
+                } else {
+                    // si el pc3 no responde y estaba marcado como vivo:
+                    if (pc3EstaVivo) {
+                        System.out.println("\n[DETECCION-FALLAS] Fallo-Parada (Crash-stop) en PC3. Redireccionando ingesta temporalmente.");
+                        pc3EstaVivo = false;
+                    }
+                }
+            }
+        }
+        socketRep.close();
+    }
 
     public static void main(String[] args) {
         System.out.println("============================================================");
-        System.out.println("  SERVICIO DE ANALITICA - PC2 (Cerebro)");
+        System.out.println("  SERVICIO DE ANALITICA - PC2 (Cerebro con Reglas Separadas)");
         System.out.println("============================================================");
         System.out.println("  Broker:       tcp://" + BROKER_IP + ":5556");
         System.out.println("  BD Principal: tcp://" + BD_PRINCIPAL_IP + ":5570");
         System.out.println("  BD Replica:   tcp://" + ANALITICA_IP + ":5562");
         System.out.println("  Semaforos:    tcp://" + ANALITICA_IP + ":5563");
-        System.out.println("============================================================");
-        System.out.println("  Reglas de trafico:");
-        System.out.println("    NORMAL:     Q < 5  AND Vp > 35 AND D < 20");
+        System.out.println("  Monitoreo:    tcp://" + ANALITICA_IP + ":5566");
         System.out.println("============================================================");
 
         ZContext contexto = new ZContext();
 
-        // inicio el hilo que recibe eventos de sensores
+        // hilo que recibe los eventos
         Thread t1 = new Thread(() -> hiloRecibirSensores(contexto));
         t1.setDaemon(true);
         t1.start();
 
-        System.out.println("\n[ANALITICA] Servicio corriendo. Ctrl+C para detener.\n");
+        // hilo para el monitoreo y sincronizacion
+        Thread t2 = new Thread(() -> hiloMonitoreoYSincronizacion(contexto));
+        t2.setDaemon(true);
+        t2.start();
+
+        System.out.println("[ANALITICA] Servicio iniciado. Ctrl+C para detener.\n");
 
         try {
             while (true) { Thread.sleep(1000); }
         } catch (InterruptedException e) {
             System.out.println("\n[ANALITICA] Cerrando...");
+            contexto.close();
             System.out.println("[ANALITICA] Listo.");
         }
     }

@@ -30,7 +30,7 @@ Sensores -> Broker : PUB (json)
 deactivate Sensores
 
 activate Broker
-Broker -> Analitica : XPUB->SUB (json)
+Broker -> Analitica : PUB->SUB (json)
 deactivate Broker
 
 activate Analitica

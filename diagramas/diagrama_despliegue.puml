@@ -27,14 +27,14 @@ node "Máquina 1 (Ubuntu VM)" as PC1 {
 
 node "Máquina 2 (Ubuntu VM)" as PC2 {
     artifact "pc2-1.0-SNAPSHOT.jar" {
-        component "Analítica"
-        component "ControlSemáforos"
-        component "BdRéplica"
+        component "Analítica" as Analitica
+        component "ControlSemáforos" as ControlSemaforos
+        component "BdRéplica" as BdReplica
     }
     database "SQLite " as SQL2 {
         artifact "replica.db"
     }
-    BdRéplica -.-> SQL2
+    BdReplica -.-> SQL2
 }
 
 node "Máquina 3 (Ubuntu VM) [Principal]" as PC3 {

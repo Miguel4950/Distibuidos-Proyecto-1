@@ -14,102 +14,124 @@ skinparam class {
 ' ===================== PC1 =====================
 
 class Sensores {
-    BROKER_IP : String
-    PUERTO_BROKER : int
-    INTERVALO : int
-    FILAS : String[]
-    COLUMNAS : int[]
-    INTERSECCIONES : String[][]
+    {static} BROKER_IP : String
+    {static} PUERTO_BROKER : int
+    {static} INTERVALO : int
+    {static} INTERSECCIONES : String[][]
+    {static} simularRuptura : boolean
+    {static} tasaOmision : int
+    {static} retardoMili : int
+    {static} random : Random
     --
-    generarEventoCamara()
-    generarEventoEspira()
-    generarEventoGps()
-    ejecutarSensor()
+    {static} timestampAhora() : String
+    {static} generarEventoCamara(fila : String, col : int, via : String) : JSONObject
+    {static} generarEventoEspira(fila : String, col : int, via : String) : JSONObject
+    {static} generarEventoGps(fila : String, col : int, via : String) : JSONObject
+    {static} ejecutarSensor(tipo : String, fila : String, col : int, via : String, contexto : ZContext) : void
+    {static} main(args : String[]) : void
 }
 
 class BrokerMultihilo {
-    BROKER_IP : String
-    PUERTO_XSUB : int
-    PUERTO_XPUB : int
-    contadorMensajes : int
-    lockContador : ReentrantLock
+    {static} BROKER_IP : String
+    {static} PUERTO_SUB : int
+    {static} PUERTO_PUB : int
+    {static} contadorMensajes : int
+    {static} lockContador : ReentrantLock
     --
-    hiloMetricas()
-    hiloProxy()
+    {static} hiloMetricas() : void
+    {static} hiloProxy(contexto : ZContext) : void
+    {static} main(args : String[]) : void
 }
 
 ' ===================== PC2 =====================
 
 class Analitica {
-    BROKER_IP : String
-    ANALITICA_IP : String
-    BD_PRINCIPAL_IP : String
-    datosIntersecciones : HashMap<String, HashMap>
-    pc3EstaVivo : boolean
-    lock : ReentrantLock
+    {static} BROKER_IP : String
+    {static} ANALITICA_IP : String
+    {static} BD_PRINCIPAL_IP : String
+    {static} SECRETO : String
+    {static} datosIntersecciones : HashMap<String, HashMap<String, Object>>
+    {static} pc3EstaVivo : boolean
+    {static} lock : ReentrantLock
     --
-    evaluarTrafico()
-    crearComandoSemaforo()
-    hiloRecibirSensores()
-    hiloAtenderMonitoreo()
+    {static} timestampAhora() : String
+    {static} calcularHMAC(datos : String, clave : String) : String
+    {static} evaluarTrafico(Q : int, Vp : double, D : int) : String
+    {static} obtenerEstrategia(estadoCarrera : String, estadoCalle : String) : String
+    {static} inicializarVia(claveVia : String) : void
+    {static} hiloRecibirSensores(contexto : ZContext) : void
+    {static} hiloMonitoreoYSincronizacion(contexto : ZContext) : void
+    {static} main(args : String[]) : void
 }
 
 class ControlSemaforos {
-    ANALITICA_IP : String
-    semaforos : HashMap<String, HashMap>
-    lock : ReentrantLock
+    {static} ANALITICA_IP : String
+    {static} semaforos : HashMap<String, HashMap<String, Object>>
+    {static} lock : ReentrantLock
     --
-    hiloCicloAutomatico()
-    hiloRecibirComandos()
+    {static} timestampAhora() : String
+    {static} inicializarInterseccion(interseccion : String) : void
+    {static} hiloCicloAutomatico() : void
+    {static} hiloRecibirComandos(contexto : ZContext) : void
+    {static} main(args : String[]) : void
+}
+
+class BdReplica {
+    {static} REPLICA_IP : String
+    {static} PUERTO_PULL : int
+    {static} PUERTO_REP : int
+    {static} BD_ARCHIVO : String
+    --
+    {static} timestampAhora() : String
+    {static} crearTablas() : void
+    {static} guardarEvento(registro : JSONObject) : int
+    {static} guardarAccionControl(accion : JSONObject) : void
+    {static} hiloRecibirDatos(contexto : ZContext) : void
+    {static} hiloResponderConsultas(contexto : ZContext) : void
+    {static} main(args : String[]) : void
 }
 
 ' ===================== PC3 =====================
 
 class BdPrincipal {
-    BD_IP : String
-    PUERTO_PULL : int
-    PUERTO_REP : int
-    BD_ARCHIVO : String
+    {static} BD_IP : String
+    {static} PUERTO_PULL : int
+    {static} PUERTO_REP : int
+    {static} BD_ARCHIVO : String
     --
-    crearTablas()
-    guardarEvento()
-    hiloRecibirDatos()
-    hiloConsultas()
+    {static} timestampAhora() : String
+    {static} crearTablas() : void
+    {static} guardarEvento(registro : JSONObject) : int
+    {static} guardarAccionControl(accion : JSONObject) : void
+    {static} hiloRecibirDatos(contexto : ZContext) : void
+    {static} hiloResponderConsultas(contexto : ZContext) : void
+    {static} main(args : String[]) : void
 }
 
-class BdReplica {
-    REPLICA_IP : String
-    PUERTO_PULL : int
-    PUERTO_REP : int
-    BD_ARCHIVO : String
+class MonitoreoConsulta {
+    {static} ANALITICA_IP : String
+    {static} BD_PRINCIPAL_IP : String
+    {static} SECRETO : String
     --
-    crearTablas()
-    guardarEvento()
-    hiloRecibirDatos()
-    hiloConsultas()
-}
-
-class Monitoreo {
-    ANALITICA_IP : String
-    BD_PRINCIPAL_IP : String
-    BD_REPLICA_IP : String
-    TIMEOUT : int
-    usandoReplica : boolean
-    --
-    crearSocket()
-    consultarBd()
-    mostrarMenu()
+    {static} timestampAhora() : String
+    {static} calcularHMAC(datos : String, clave : String) : String
+    {static} realizarConsultaBD(contexto : ZContext, peticion : JSONObject) : JSONObject
+    {static} enviarEmergencia(contexto : ZContext, interseccion : String, via : String, accion : String, duracion : int) : void
+    {static} main(args : String[]) : void
 }
 
 ' ===================== RELACIONES =====================
 
-Sensores --> BrokerMultihilo : PUB/SUB
-BrokerMultihilo --> Analitica : XSUB/XPUB
-Analitica --> ControlSemaforos : PUSH/PULL
-Analitica --> BdPrincipal : PUSH/PULL
-Analitica --> BdReplica : PUSH/PULL
-Monitoreo --> Analitica : REQ/REP
-Monitoreo --> BdPrincipal : REQ/REP
-Monitoreo ..> BdReplica : REQ/REP\n(failover)
+Sensores --> BrokerMultihilo : PUB/SUB (Puerto 5555)
+BrokerMultihilo --> Analitica : PUB/SUB (Puerto 5556)
+Analitica --> ControlSemaforos : PUSH/PULL (Puerto 5563)
+Analitica --> BdPrincipal : PUSH/PULL (Puerto 5570)
+Analitica --> BdReplica : PUSH/PULL (Puerto 5562)
+MonitoreoConsulta --> Analitica : REQ/REP (Puerto 5566)
+MonitoreoConsulta --> BdPrincipal : REQ/REP (Puerto 5571)
+MonitoreoConsulta ..> BdReplica : REQ/REP\n(failover, Puerto 5572)
+
+Analitica --> BdPrincipal : REQ/REP\n(ping, sync & logs, Puerto 5571)
+Analitica --> BdReplica : REQ/REP\n(sync, Puerto 5572)
 
 @enduml
