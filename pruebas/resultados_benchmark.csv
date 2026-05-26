@@ -1,0 +1,10 @@
+Configuracion,Escenario,BD_Principal_Inserts,BD_Replica_Inserts,Latencia_ms
+BrokerMonohilo,Base (1x10s),360,360,165.256
+BrokerMonohilo,Estres (2x5s),1204,1232,23.9
+BrokerMultihilo,Base (1x10s),360,360,22.755
+BrokerMultihilo,Estres (2x5s),1232,1272,21.606
+
+Metrica de Resiliencia,Valor
+Latencia de consulta con PC3 Caido,19.866 ms
+Sincronizacion pos-recuperacion exitosa,SI
+Diferencia de registros tras sync,0

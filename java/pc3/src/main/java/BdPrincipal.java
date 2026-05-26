@@ -185,14 +185,10 @@ public class BdPrincipal {
                     try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + BD_ARCHIVO)) {
                         PreparedStatement ps = conn.prepareStatement(
                                 "SELECT interseccion, via, tipo_sensor, estado_trafico, Q, Vp, D, timestamp_procesado "
-                                + "FROM eventos_trafico WHERE timestamp_procesado BETWEEN ? ?");
-                        // nota: corregir sintaxis sql usaremos between ? and ?
-                        PreparedStatement psFixed = conn.prepareStatement(
-                                "SELECT interseccion, via, tipo_sensor, estado_trafico, Q, Vp, D, timestamp_procesado "
                                 + "FROM eventos_trafico WHERE timestamp_procesado BETWEEN ? AND ?");
-                        psFixed.setString(1, inicio);
-                        psFixed.setString(2, fin);
-                        ResultSet rs = psFixed.executeQuery();
+                        ps.setString(1, inicio);
+                        ps.setString(2, fin);
+                        ResultSet rs = ps.executeQuery();
 
                         while (rs.next()) {
                             JSONObject ev = new JSONObject();

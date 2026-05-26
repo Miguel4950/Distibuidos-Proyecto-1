@@ -179,7 +179,7 @@ public class Sensores {
     }
 
     public static void main(String[] args) {
-        // parsear argumentos de simulacion de fallas
+        // parsear argumentos de simulacion de fallas y configuracion
         for (int i = 0; i < args.length; i++) {
             if (args[i].equalsIgnoreCase("-ruptura")) {
                 simularRuptura = true;
@@ -188,6 +188,9 @@ public class Sensores {
                 i++;
             } else if (args[i].equalsIgnoreCase("-temporizacion") && i + 1 < args.length) {
                 retardoMili = Integer.parseInt(args[i + 1]);
+                i++;
+            } else if (args[i].equalsIgnoreCase("-intervalo") && i + 1 < args.length) {
+                INTERVALO = Integer.parseInt(args[i + 1]);
                 i++;
             }
         }
