@@ -12,3 +12,9 @@ target/
 .idea/
 *.class
 .DS_Store
+
+# Delivery documents
+entrega1/
+ENTREGA2/
+entrega2/
+
