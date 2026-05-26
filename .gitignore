@@ -1,0 +1,14 @@
+# Target directories (maven)
+**/target/
+target/
+
+# SQLite databases and journals
+*.db
+*.db-journal
+**/*.db
+**/*.db-journal
+
+# IDE and system files
+.idea/
+*.class
+.DS_Store
